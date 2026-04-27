@@ -1,0 +1,11 @@
+<nav>
+    <a href="/">Home</a>
+
+    {% if session.get('user_id') %}
+        <a href="/create">New Post</a>
+        <a href="/logout">Logout ({{ session.username }})</a>
+    {% else %}
+        <a href="/login">Login</a>
+        <a href="/signup">Sign Up</a>
+    {% endif %}
+</nav>
