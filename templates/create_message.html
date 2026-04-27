@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <h2>Create New Message</h2>
+
+    <form action="/create_message" method="post">
+        <textarea name="msg" placeholder="What is on your mind?" required></textarea><br>
+        <button type="submit">Post to Feed</button>
+    </form>
+{% endblock %}

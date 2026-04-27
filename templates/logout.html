@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <h2>Logout</h2>
+
+    <p>Are you sure you want to log out of your account?</p>
+    
+    <form action="/logout" method="post">
+        <button type="submit" style="background-color: #ff4444; color: white;">Yes, Log Me Out</button>
+        <a href="/">No, take me home</a>
+    </form>
+{% endblock %}

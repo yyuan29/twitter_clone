@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <link rel="stylesheet" href="/static/style.css">
+    <title>My Twitter Clone</title>
+</head>
+<body>
+    <h1>Twitter Clone Pro</h1>
+
+    <nav>
+        <a href="/">Home</a>
+        {% if request.session.get('user_id') %}
+            <a href="/create_message">New Message</a>
+            <a href="/logout">Logout</a>
+        {% else %}
+            <a href="/login">Login</a>
+            <a href="/create_user">Sign Up</a>
+        {% endif %}
+    </nav>
+    <hr>
+
+    {% block content %}{% endblock %}
+</body>
+</html>

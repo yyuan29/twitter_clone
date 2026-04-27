@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <h2>Create User Account</h2>
+
+    <form action="/create_user" method="post" class="form-container">
+        <label>Username:</label><br>
+        <input type="text" name="u" required><br>
+        
+        <label>Age:</label><br>
+        <input type="number" name="age" required><br>
+        
+        <label>Password:</label><br>
+        <input type="password" name="p1" required><br>
+        
+        <label>Repeat Password:</label><br>
+        <input type="password" name="p2" required><br>
+        
+        <button type="submit">Register</button>
+    </form>
+{% endblock %}
