@@ -1,24 +1,21 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <link rel="stylesheet" href="/static/style.css">
-    <title>My Twitter Clone</title>
+    <title>Twitter Clone</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='/css/style.css') }}">
 </head>
 <body>
-    <h1>Twitter Clone Pro</h1>
-
-    <nav>
-        <a href="/">Home</a>
-        {% if request.session.get('user_id') %}
-            <a href="/create_message">New Message</a>
+    <header>
+        <h1>My Awesome Webpage</h1>
+        <nav>
+            <a href="/">Home</a> | 
+            <a href="/create_user">Register</a> | 
+            <a href="/login">Login</a> | 
+            <a href="/create_message">New Message</a> | 
             <a href="/logout">Logout</a>
-        {% else %}
-            <a href="/login">Login</a>
-            <a href="/create_user">Sign Up</a>
-        {% endif %}
-    </nav>
+        </nav>
+    </header>
     <hr>
-
     {% block content %}{% endblock %}
 </body>
 </html>

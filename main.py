@@ -3,22 +3,42 @@ import uvicorn
 from fastapi import FastAPI, Request, Form
 from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
+from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 
 app = FastAPI()
-# This middleware allows the 'request.session' to work
-app.add_middleware(SessionMiddleware, secret_key="school_project")
+
+# Requirement 3: Static files mounting
+app.mount("/static", StaticFiles(directory="static"), name="static")
+app.add_middleware(SessionMiddleware, secret_key="supersecretkey")
 templates = Jinja2Templates(directory="templates")
 
+@app.get("/")
+def home(request: Request):
+    db = get_db()
+    messages = db.execute('''
+        SELECT m.content, m.timestamp, u.username, u.age 
+        FROM messages m JOIN users u ON m.user_id = u.id 
+        ORDER BY m.timestamp DESC
+    ''').fetchall()
+    db.close()
+    
+    # Use this EXACT syntax:
+    return templates.TemplateResponse(
+        "index.html", 
+        {"request": request, "messages": messages}
+    )
+
 def get_db():
-    """Connects to the database and ensures tables exist."""
+    """Connects to SQLite and creates tables if they don't exist."""
     db = sqlite3.connect("twitter.db")
     db.row_factory = sqlite3.Row
-    # Create tables if they aren't there yet
+    # Requirement 2: User table includes 'age'
     db.execute('''CREATE TABLE IF NOT EXISTS users (
         id INTEGER PRIMARY KEY AUTOINCREMENT, 
         username TEXT UNIQUE, 
-        password TEXT)''')
+        password TEXT,
+        age INTEGER)''')
     db.execute('''CREATE TABLE IF NOT EXISTS messages (
         id INTEGER PRIMARY KEY AUTOINCREMENT, 
         user_id INTEGER, 
@@ -26,94 +46,88 @@ def get_db():
         timestamp DATETIME DEFAULT CURRENT_TIMESTAMP)''')
     return db
 
-# --- DOCTEST ---
-def is_match(p1, p2):
+# --- DOCTESTS (Requirement: Simple and Easy) ---
+def validate_age(age):
     """
-    Checks if two passwords match.
-    >>> is_match("pass", "pass")
+    Checks if an age is valid (greater than 0).
+    >>> validate_age(25)
     True
-    >>> is_match("pass", "fail")
+    >>> validate_age(-5)
     False
     """
-    return p1 == p2
+    return age > 0
 
-# --- ROUTES ---
+# --- ROUTES (Requirement 1: All 5 routes present) ---
 
 @app.get("/")
-def home(request: Request):
+def route_index(request: Request):
+    """Requirement 2: Displays messages with text, timestamp, user, and age."""
     db = get_db()
-    # JOIN links the message to the user who wrote it
-    # ORDER BY timestamp DESC puts newest messages at the top
-    posts = db.execute('''
-        SELECT m.content, m.timestamp, u.username 
+    query = '''
+        SELECT m.content, m.timestamp, u.username, u.age 
         FROM messages m JOIN users u ON m.user_id = u.id 
         ORDER BY m.timestamp DESC
-    ''').fetchall()
+    '''
+    messages = db.execute(query).fetchall()
     db.close()
-    return templates.TemplateResponse(request=request, name="home.html", context={"posts": posts})
+    return templates.TemplateResponse("index.html", {"request": request, "messages": messages})
 
-@app.get("/signup")
-def signup_page(request: Request):
-    return templates.TemplateResponse(request=request, name="signup.html")
+@app.get("/create_user")
+def route_create_user(request: Request):
+    return templates.TemplateResponse("create_user.html", {"request": request})
 
-@app.post("/signup")
-def do_signup(u: str = Form(...), p1: str = Form(...), p2: str = Form(...)):
-    if not is_match(p1, p2): 
-        return "Error: Passwords do not match. Go back and try again."
-    
+@app.post("/create_user")
+def do_create_user(u: str = Form(...), p: str = Form(...), age: int = Form(...)):
+    if not validate_age(age):
+        return "Invalid age. Go back."
     db = get_db()
     try:
-        # Parameterized query (?) prevents SQL Injection (Requirement check!)
-        db.execute('INSERT INTO users (username, password) VALUES (?, ?)', (u, p1))
+        db.execute('INSERT INTO users (username, password, age) VALUES (?, ?, ?)', (u, p, age))
         db.commit()
         return RedirectResponse(url="/login", status_code=303)
     except sqlite3.IntegrityError:
-        return "Error: User exists already. Try a different name."
+        return "User already exists."
     finally:
         db.close()
 
 @app.get("/login")
-def login_page(request: Request):
-    return templates.TemplateResponse(request=request, name="login.html")
+def route_login(request: Request):
+    return templates.TemplateResponse("login.html", {"request": request})
 
 @app.post("/login")
 def do_login(request: Request, u: str = Form(...), p: str = Form(...)):
     db = get_db()
     user = db.execute('SELECT * FROM users WHERE username=? AND password=?', (u, p)).fetchone()
     db.close()
-
     if user:
-        # Create the session 'cookie'
         request.session["user_id"] = user["id"]
         request.session["username"] = user["username"]
         return RedirectResponse(url="/", status_code=303)
-    return "Error: Invalid credentials. Go back and try again."
+    return "Invalid credentials."
 
-@app.get("/logout")
-def logout(request: Request):
-    request.session.clear() # Requirement: Delete the cookies
-    return RedirectResponse(url="/", status_code=303)
-
-@app.get("/create")
-def create_page(request: Request):
-    # Requirement: only visible/accessible if logged in
-    if "user_id" not in request.session: 
-        return RedirectResponse(url="/login", status_code=303)
-    return templates.TemplateResponse(request=request, name="create.html")
-
-@app.post("/create")
-def do_create(request: Request, msg: str = Form(...)):
+@app.get("/create_message")
+def route_create_message(request: Request):
     if "user_id" not in request.session:
         return RedirectResponse(url="/login", status_code=303)
-        
+    return templates.TemplateResponse("create_message.html", {"request": request})
+
+@app.post("/create_message")
+def do_create_message(request: Request, content: str = Form(...)):
+    if "user_id" not in request.session:
+        return RedirectResponse(url="/login", status_code=303)
     db = get_db()
     db.execute('INSERT INTO messages (user_id, content) VALUES (?, ?)', 
-              (request.session["user_id"], msg))
+              (request.session["user_id"], content))
     db.commit()
     db.close()
     return RedirectResponse(url="/", status_code=303)
 
+@app.get("/logout")
+def route_logout(request: Request):
+    request.session.clear()
+    return templates.TemplateResponse("logout.html", {"request": request})
+
 if __name__ == "__main__":
     import doctest
-    doctest.testmod() # Runs the password match tests
-    uvicorn.run("main:app", host="127.0.0.1", port=8888, reload=True)
+    doctest.testmod()
+    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)

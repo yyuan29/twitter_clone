@@ -1,13 +1,13 @@
 {% extends "base.html" %}
 {% block content %}
-    <h2>Recent Messages</h2>
-    <img src="{{ url_for('static', filename='images/logo.png') }}" alt="Logo" width="100">
-    
+    <h2>Home Feed</h2>
+    <img src="{{ url_for('static', path='/images/logo.png') }}" width="100">
+
     {% for msg in messages %}
-    <div class="message-box">
-        <p><strong>{{ msg.user }}</strong> (Age: {{ msg.age }}) - <em>{{ msg.timestamp }}</em></p>
-        <p>{{ msg.text }}</p>
+    <div style="border: 1px solid #ccc; margin: 10px; padding: 10px;">
+        <p><strong>{{ msg.username }}</strong> (Age: {{ msg.age }})</p>
+        <p>{{ msg.content }}</p>
+        <small>{{ msg.timestamp }}</small>
     </div>
-    <hr>
     {% endfor %}
 {% endblock %}
