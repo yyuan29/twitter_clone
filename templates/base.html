@@ -1,21 +1,31 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Twitter Clone</title>
-    <link rel="stylesheet" href="{{ url_for('static', path='/css/style.css') }}">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MessageBoard Pro</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-    <header>
-        <h1>My Awesome Webpage</h1>
-        <nav>
-            <a href="/">Home</a> | 
-            <a href="/create_user">Register</a> | 
-            <a href="/login">Login</a> | 
-            <a href="/create_message">New Message</a> | 
-            <a href="/logout">Logout</a>
-        </nav>
-    </header>
-    <hr>
-    {% block content %}{% endblock %}
+    <nav class="navbar">
+        <div class="nav-content">
+            <span class="logo">BirdieMessages</span>
+            <ul class="nav-links">
+                <a href="{{ url_for('index') }}">Home</a>
+                <a href="{{ url_for('create_message') }}">Post</a>
+                <a href="{{ url_for('create_user') }}">Register</a>
+                <a href="{{ url_for('login') }}">Login</a>
+                <li><a href="{{ url_for('logout') }}" class="logout-btn">Logout</a>
+            </ul>
+        </div>
+    </nav>
+
+    <div class="container">
+        
+        <main class="content-box">
+            {% block content %}{% endblock %}
+        </main>
+    </div>
 </body>
 </html>
