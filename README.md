@@ -14,4 +14,4 @@ This is my version of Twitter. It is a simple Flask application that displays me
 ## How to Run
 1. Run `python3 db_create.py` to initialize the database.
 2. Run `python3 app.py` to start the server.
-3. Visit 'http://127.0.0.1:5000'
+3. Visit 'http://127.0.0.1:8000'

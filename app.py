@@ -1,17 +1,24 @@
-from flask import Flask, render_template
+from fastapi import FastAPI, Request
+from fastapi.responses import HTMLResponse
+from fastapi.templating import Jinja2Templates
+from fastapi.staticfiles import StaticFiles
 import sqlite3
+import uvicorn
 
-app = Flask(__name__)
+app = FastAPI()
+
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
+templates = Jinja2Templates(directory="templates")
 
 def get_db_connection():
     conn = sqlite3.connect('database.db')
     conn.row_factory = sqlite3.Row
     return conn
 
-@app.route('/')
-def index():
+@app.get("/", response_class=HTMLResponse)
+async def index(request: Request):
     conn = get_db_connection()
-    # Requirement 2: Joining tables to get text, timestamp, username, and age
     query = '''
         SELECT messages.content, messages.timestamp, users.username, users.age
         FROM messages
@@ -21,7 +28,6 @@ def index():
     rows = conn.execute(query).fetchall()
     conn.close()
 
-    # Step 1: Create list of dictionaries
     messages_list = []
     for row in rows:
         messages_list.append({
@@ -31,20 +37,28 @@ def index():
             'age': row['age']
         })
 
-    return render_template('index.html', messages=messages_list)
+    # FastAPI requires passing 'request' into the template
+    return templates.TemplateResponse(
+    request=request, 
+    name="index.html", 
+    context={"messages": messages_list}
+    )
 
-# Requirement 1: The other 4 routes
-@app.route('/login')
-def login(): return render_template('login.html')
+async def login(request: Request):
+    return templates.TemplateResponse("login.html", {"request": request})
 
-@app.route('/logout')
-def logout(): return render_template('logout.html')
+@app.get("/logout", response_class=HTMLResponse)
+async def logout(request: Request):
+    return templates.TemplateResponse("logout.html", {"request": request})
 
-@app.route('/create_message')
-def create_message(): return render_template('create_message.html')
+@app.get("/create_message", response_class=HTMLResponse)
+async def create_message(request: Request):
+    return templates.TemplateResponse("create_message.html", {"request": request})
 
-@app.route('/create_user')
-def create_user(): return render_template('create_user.html')
+@app.get("/create_user", response_class=HTMLResponse)
+async def create_user(request: Request):
+    return templates.TemplateResponse("create_user.html", {"request": request})
 
-if __name__ == '__main__':
-    app.run(debug=True)
+if __name__ == "__main__":
+    # This tells Python to start the server when you run the file
+    uvicorn.run("app:app", host="127.0.0.1", port=8000, reload=True)
