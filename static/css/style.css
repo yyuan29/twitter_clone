@@ -1,18 +1,48 @@
 /* Basic styling for every page via base.html */
+/* Darker Pink & Creme Theme */
+:root {
+    --primary: #d4a5a5;    /* Dark Muted Pink */
+    --secondary: #9e7676;  /* Deep Dusty Rose */
+    --bg: #f5f0e6;         /* Warm Creme */
+    --text: #4a4444;       /* Espresso Text */
+}
+
+html, body {
+    height: 100%;
+    margin: 0;
+    background-color: var(--bg);
+}
+
 body {
-    font-family: Arial, sans-serif;
-    background-color: #f4f4f4;
-    margin: 20px;
+    font-family: sans-serif;
+    color: var(--text);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
 }
-nav a {
-    text-decoration: none;
-    color: blue;
-    font-weight: bold;
-}
-.message-card {
+
+header {
+    text-align: center;
     background: white;
-    padding: 10px;
-    margin: 10px 0;
-    border-radius: 5px;
-    border-left: 5px solid #333;
+    width: 100%;
+    padding: 20px 0;
+    border-bottom: 4px solid var(--primary);
+}
+
+.message-feed {
+    border: 3px solid var(--primary); /* Pink highlight box */
+    border-radius: 15px;
+    padding: 20px;
+    margin-top: 20px;
+    background: rgba(255, 255, 255, 0.4);
+    width: 80%;
+    max-width: 600px;
+}
+
+.header-logo {
+    width: 12px !important;  /* Change this number to go even smaller */
+    height: 12px;           /* Keeps it square/proportional */
+    object-fit: contain;    /* Ensures the bird doesn't look squished */
+    border-radius: 50%;     /* Optional: makes the logo circular */
+    border: 2px solid var(--primary); 
 }

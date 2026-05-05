@@ -1,17 +1,13 @@
 {% extends "base.html" %}
 {% block content %}
-    <h2>Recent Messages</h2>
-    
-    <img src="{{ url_for('static', filename='logo.png') }}" alt="Logo" width="100">
 
-    <div class="message-container">
+    <div class="message-feed">
         {% for msg in messages %}
-            <div class="message-card">
-                <p><strong>{{ msg.username }}</strong> (Age: {{ msg.age }}) says:</p>
+            <div class="message">
+                <p><strong>{{ msg.username }}</strong> (Age: {{ msg.age }}) at {{ msg.timestamp }}</p>
                 <p>{{ msg.text }}</p>
-                <small>Posted on: {{ msg.timestamp }}</small>
+                <hr>
             </div>
-            <hr>
         {% endfor %}
     </div>
 {% endblock %}

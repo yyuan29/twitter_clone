@@ -1,31 +1,28 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MessageBoard Pro</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+    <title>BirdieMessages</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-    <nav class="navbar">
-        <div class="nav-content">
-            <span class="logo">BirdieMessages</span>
-            <ul class="nav-links">
-                <a href="{{ url_for('index') }}">Home</a>
-                <a href="{{ url_for('create_message') }}">Post</a>
-                <a href="{{ url_for('create_user') }}">Register</a>
-                <a href="{{ url_for('login') }}">Login</a>
-                <li><a href="{{ url_for('logout') }}" class="logout-btn">Logout</a>
-            </ul>
+    <header>
+        <div class="header-main">
+            <img src="{{ url_for('static', filename='logo.png') }}" 
+            style="width: 50px !important; height: auto;" 
+            alt="Birdie Logo">
+                
+            <h1>Welcome to BirdieMessages!</h1>
         </div>
-    </nav>
 
+        <nav>
+            <a href="/">Home</a> | <a href="/login">Login</a> | <a href="/logout">Logout</a> | 
+            <a href="/create_message">Post</a> | <a href="/create_user">Register</a>
+        </nav>
+    </header>
+    <hr>
+    
     <div class="container">
-        
-        <main class="content-box">
-            {% block content %}{% endblock %}
-        </main>
+        {% block content %}{% endblock %}
     </div>
 </body>
 </html>
