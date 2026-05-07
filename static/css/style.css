@@ -1,26 +1,59 @@
 /* Basic styling for every page via base.html */
 body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    line-height: 1.6;
-    max-width: 800px;
-    margin: 0 auto;
-    padding: 20px;
-    color: #333;
+    font-family: 'Helvetica Neue', Arial, sans-serif;
+    background-color: #f5f8fa;
+    margin: 0;
+    padding: 0;
+    color: #14171a;
 }
 
-a {
-    color: #1da1f2; /* Twitter Blue */
-    text-decoration: none;
+header {
+    background: white;
+    padding: 15px 20px;
+    border-bottom: 1px solid #e1e8ed;
+    position: sticky;
+    top: 0;
+    z-index: 100;
 }
 
-a:hover {
-    text-decoration: underline;
+.header-main {
+    display: flex;
+    align-items: center;
+    gap: 15px;
 }
 
-h1 {
-    font-weight: 800;
+h1 { font-size: 1.5rem; margin: 0; color: #1da1f2; }
+
+nav { margin-top: 10px; font-size: 0.9rem; }
+nav a { color: #657786; text-decoration: none; font-weight: bold; }
+nav a:hover { color: #1da1f2; }
+
+.container {
+    max-width: 600px;
+    margin: 20px auto;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
 }
 
-.message-item p {
-    margin: 5px 0;
+.message-item {
+    padding: 15px;
+    border-bottom: 1px solid #e1e8ed;
+}
+
+.user-info { font-weight: bold; font-size: 1rem; }
+.timestamp { color: #657786; font-size: 0.85rem; }
+.content { margin: 10px 0; font-size: 1.1rem; line-height: 1.4; }
+
+.action-links a {
+    font-size: 0.8rem;
+    color: #e0245e; /* Delete red */
+    margin-right: 10px;
+    cursor: pointer;
+}
+
+.edited-tag {
+    font-size: 0.75rem;
+    color: #657786;
+    font-style: italic;
 }

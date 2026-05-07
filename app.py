@@ -4,18 +4,26 @@ from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 import sqlite3
 import uvicorn
+import os
+from datetime import datetime
 
 app = FastAPI()
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
+DB_PATH = os.path.join(os.path.dirname(__file__), "database.db")
 
+def linkify(text):
+    if text is None: return ""
+    import re
+    return re.sub(r'(https?://[^\s]+)', r'<a href="\1" target="_blank">\1</a>', str(text))
+templates.env.globals.update(linkify=linkify)
 
 # -----------------------
 # DATABASE CONNECTION
 # -----------------------
 def get_db_connection():
-    conn = sqlite3.connect("database.db", check_same_thread=False)
+    conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     return conn
 
@@ -40,10 +48,12 @@ async def index(request: Request):
     # FIXED: consistent + Jinja-safe format
     messages_list = [
         {
-            "text": row["content"],
+             "id": row["id"],
+            "content": row["content"],
             "timestamp": row["timestamp"],
             "username": row["username"],
-            "age": row["age"]
+            "age": row["age"],
+            "user_id": row["user_id"]
         }
         for row in rows
     ]
@@ -53,7 +63,6 @@ async def index(request: Request):
     name="index.html", 
     context={"messages": messages_list, "user": request.cookies.get("username")}
 )
-
 
 # -----------------------
 # LOGIN PAGE (GET)
@@ -188,6 +197,77 @@ async def handle_post_message(request: Request, content: str = Form(...)):
 
     # 3. Redirect back to home
     return RedirectResponse(url="/", status_code=303)
+
+# -----------------------
+# DELETE MESSAGE 
+# -----------------------
+@app.get("/delete_message/{msg_id}")
+async def delete_message(request: Request, msg_id: int):
+    user_id = request.cookies.get("user_id")
+    if not user_id: return RedirectResponse("/login", 303)
+    
+    db = get_db_connection()
+    # Security: Only let the user delete their own messages
+    db.execute("DELETE FROM messages WHERE id = ? AND user_id = ?", (msg_id, user_id))
+    db.commit()
+    db.close()
+    return RedirectResponse("/", 303)
+
+# -----------------------
+# EDIT MESSAGE 
+# -----------------------
+@app.get("/edit_message/{msg_id}", response_class=HTMLResponse)
+async def edit_page(request: Request, msg_id: int):
+    db = get_db_connection()
+    msg = db.execute("SELECT * FROM messages WHERE id = ?", (msg_id,)).fetchone()
+    db.close()
+    return templates.TemplateResponse(request=request, name="edit_message.html", context={"message": msg})
+
+@app.post("/edit_message/{msg_id}")
+async def handle_edit(request: Request, msg_id: int, content: str = Form(...)):
+    user_id = request.cookies.get("user_id")
+    db = get_db_connection()
+    # Update content and set the 'edited_at' timestamp
+    db.execute("""
+        UPDATE messages 
+        SET content = ?, edited_at = ? 
+        WHERE id = ? AND user_id = ?
+    """, (content, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), msg_id, user_id))
+    db.commit()
+    db.close()
+    return RedirectResponse("/", 303)
+
+@app.get("/", response_class=HTMLResponse)
+async def index(request: Request):
+    db = get_db_connection()
+    # Requirement: You need 'messages.id' to link to Delete/Edit 
+    # and 'messages.user_id' to check if the current user owns the post
+    query = '''
+        SELECT 
+            messages.id, 
+            messages.content, 
+            messages.timestamp, 
+            messages.user_id, 
+            users.username, 
+            users.age
+        FROM messages
+        JOIN users ON messages.user_id = users.id
+        ORDER BY messages.timestamp DESC
+    '''
+    rows = db.execute(query).fetchall()
+    db.close()
+
+    # Convert to standard dictionaries so Jinja2 can read them easily
+    messages_list = [dict(row) for row in rows]
+
+    return templates.TemplateResponse(
+        request=request,
+        name="index.html",
+        context={
+            "messages": messages_list, 
+            "user": request.cookies.get("username")
+        }
+    )
 
 # -----------------------
 # RUN SERVER

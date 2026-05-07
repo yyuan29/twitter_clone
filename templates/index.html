@@ -1,17 +1,15 @@
-{% extends "base.html" %}
+{% for m in messages %}
+<div class="message-item">
+    <p><strong>{{ m.username }}</strong> (Age: {{ m.age }}) at {{ m.timestamp }}</p>
+    <p>{{ linkify(m.content) | safe }}</p>
 
-{% block content %}
-    <div class="feed">
-        {% for m in messages %}
-            <div class="message-item" style="margin-bottom: 20px;">
-                <p><strong>{{ m.username }}</strong> (Age: {{ m.age }}) at {{ m.timestamp }}</p>
-                
-                <p style="margin-top: 10px;">{{ m.content }}</p>
-                
-                <hr style="border: 0.5px solid #eee;">
-            </div>
-        {% else %}
-            <p>No messages found.</p>
-        {% endfor %}
+    {% if request.cookies.get("user_id") and request.cookies.get("user_id")|int == m.user_id %}
+    <div class="actions">
+        <a href="/edit_message/{{ m.id }}">Edit</a> |
+        <a href="/delete_message/{{ m.id }}" style="color:red;">Delete</a>
     </div>
-{% endblock %}
+    {% endif %}
+
+    <hr>
+</div>
+{% endfor %}
