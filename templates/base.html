@@ -1,20 +1,29 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <link rel="stylesheet" href="/static/style.css">
-    <title>Birdie</title>
+    <title>BirdieMessages</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='/style.css') }}">
 </head>
 <body>
-    <nav>
-        <a href="/">Home</a> 
-        {% if not request.cookies.get("username") %}
-            | <a href="/login">Login</a> | <a href="/create_user">Register</a>
-        {% else %}
-            | <a href="/create_message">Post</a> | <a href="/logout">Logout</a>
-            (Logged in as: {{ request.cookies.get("username") }})
-        {% endif %}
-    </nav>
-    <hr>
-    {% block content %}{% endblock %}
+    <header>
+        <div style="display: flex; align-items: center; gap: 10px;">
+            <img src="{{ url_for('static', path='/logo.png') }}" alt="Birdie Logo" style="height: 60px;">
+            <h1 style="font-size: 2.5em; margin: 0;">Welcome to BirdieMessages!</h1>
+        </div>
+
+        <nav style="margin-top: 10px;">
+            <a href="/">Home</a> | 
+            {% if not request.cookies.get("username") %}
+                <a href="/login">Login</a> | <a href="/create_user">Register</a>
+            {% else %}
+                <a href="/logout">Logout</a> | <a href="/create_message">Post</a> | <a href="/create_user">Register</a>
+            {% endif %}
+        </nav>
+    </header>
+    <hr style="border: 1px solid #ccc;">
+    
+    <div class="container">
+        {% block content %}{% endblock %}
+    </div>
 </body>
 </html>

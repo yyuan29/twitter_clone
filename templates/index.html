@@ -1,24 +1,17 @@
 {% extends "base.html" %}
 
-{% block title %}Home{% endblock %}
-
 {% block content %}
-
-    <h2>Latest Messages</h2>
-
-    {% if messages and messages|length > 0 %}
-
-        {% for message in messages %}
-            <div class="message-box">
-                <p><strong>{{ message.username }}</strong> ({{ message.age }})</p>
-                <p>{{ message.text }}</p>
-                <small>{{ message.timestamp }}</small>
+    <div class="feed">
+        {% for m in messages %}
+            <div class="message-item" style="margin-bottom: 20px;">
+                <p><strong>{{ m.username }}</strong> (Age: {{ m.age }}) at {{ m.timestamp }}</p>
+                
+                <p style="margin-top: 10px;">{{ m.content }}</p>
+                
+                <hr style="border: 0.5px solid #eee;">
             </div>
-            <hr>
+        {% else %}
+            <p>No messages found.</p>
         {% endfor %}
-
-    {% else %}
-        <p>No messages yet.</p>
-    {% endif %}
-
+    </div>
 {% endblock %}

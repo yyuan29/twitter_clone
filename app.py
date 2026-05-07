@@ -49,13 +49,10 @@ async def index(request: Request):
     ]
 
     return templates.TemplateResponse(
-        "index.html",
-        {
-            "request": request,
-            "messages": messages_list,
-            "user": request.cookies.get("username")
-        }
-    )
+    request=request, 
+    name="index.html", 
+    context={"messages": messages_list, "user": request.cookies.get("username")}
+)
 
 
 # -----------------------
