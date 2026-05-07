@@ -1,11 +1,25 @@
 {% extends "base.html" %}
 
-{% block content %}
-    <h2>Login</h2>
+{% block title %}
+Login
+{% endblock %}
 
-    <form action="/login" method="post">
-        <input type="text" name="u" placeholder="Username" required><br>
-        <input type="password" name="p" placeholder="Password" required><br>
-        <button type="submit">Enter</button>
-    </form>
+{% block content %}
+
+<h2>Login</h2>
+
+<form action="/login" method="post">
+
+    <label>Username</label>
+    <input type="text" name="username" required>
+
+    <label>Password</label>
+    <input type="password" name="password" required>
+
+    <button type="submit">
+        Login
+    </button>
+
+</form>
+
 {% endblock %}

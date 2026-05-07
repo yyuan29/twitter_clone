@@ -61,8 +61,11 @@ async def index(request: Request):
 @app.get("/login", response_class=HTMLResponse)
 async def login_page(request: Request):
     return templates.TemplateResponse(
-        "login.html",
-        {"request": request}
+        request=request, 
+        name="login.html", 
+        context={
+            "user": request.cookies.get("username")
+        }
     )
 
 
@@ -106,8 +109,9 @@ async def logout():
 @app.get("/create_user", response_class=HTMLResponse)
 async def create_user_page(request: Request):
     return templates.TemplateResponse(
-        "create_user.html",
-        {"request": request}
+        request=request, 
+        name="create_user.html", 
+        context={}
     )
 
 
@@ -145,30 +149,45 @@ async def create_user(
 # -----------------------
 @app.get("/create_message", response_class=HTMLResponse)
 async def create_message_page(request: Request):
+    # Check if user is logged in (Requirement: Post link only for logged in users)
+    if not request.cookies.get("username"):
+        return RedirectResponse(url="/login", status_code=303)
+
     return templates.TemplateResponse(
-        "create_message.html",
-        {"request": request}
+        request=request, 
+        name="create_message.html", 
+        context={
+            "user": request.cookies.get("username")
+        }
     )
 
-
 # -----------------------
-# CREATE MESSAGE (POST)
+# CREATE MESSAGE 
 # -----------------------
 @app.post("/create_message")
-async def create_message(request: Request, content: str = Form(...)):
+async def handle_post_message(request: Request, content: str = Form(...)):
+    # 1. Get the user_id from the cookie
     user_id = request.cookies.get("user_id")
 
-    if user_id:
-        conn = get_db_connection()
+    if not user_id:
+        # If they aren't logged in, they shouldn't be posting
+        return RedirectResponse(url="/login", status_code=303)
+
+    # 2. Database transaction
+    conn = get_db_connection()
+    try:
         conn.execute(
             "INSERT INTO messages (user_id, content) VALUES (?, ?)",
             (user_id, content)
         )
         conn.commit()
+    except Exception as e:
+        print(f"Error saving message: {e}")
+    finally:
         conn.close()
 
-    return RedirectResponse("/", status_code=303)
-
+    # 3. Redirect back to home
+    return RedirectResponse(url="/", status_code=303)
 
 # -----------------------
 # RUN SERVER
