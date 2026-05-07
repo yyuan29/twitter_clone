@@ -1,13 +1,24 @@
 {% extends "base.html" %}
+
+{% block title %}Home{% endblock %}
+
 {% block content %}
-    <h2>Recent Messages</h2>
-    <img src="{{ url_for('static', filename='images/logo.png') }}" alt="Logo" width="100">
-    
-    {% for msg in messages %}
-    <div class="message-box">
-        <p><strong>{{ msg.user }}</strong> (Age: {{ msg.age }}) - <em>{{ msg.timestamp }}</em></p>
-        <p>{{ msg.text }}</p>
-    </div>
-    <hr>
-    {% endfor %}
+
+    <h2>Latest Messages</h2>
+
+    {% if messages and messages|length > 0 %}
+
+        {% for message in messages %}
+            <div class="message-box">
+                <p><strong>{{ message.username }}</strong> ({{ message.age }})</p>
+                <p>{{ message.text }}</p>
+                <small>{{ message.timestamp }}</small>
+            </div>
+            <hr>
+        {% endfor %}
+
+    {% else %}
+        <p>No messages yet.</p>
+    {% endif %}
+
 {% endblock %}
