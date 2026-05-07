@@ -237,26 +237,6 @@ async def handle_edit(request: Request, msg_id: int, content: str = Form(...)):
     db.close()
     return RedirectResponse("/", 303)
 
-@app.get("/", response_class=HTMLResponse)
-async def index(request: Request):
-    db = get_db_connection()
-    # Requirement: You need 'messages.id' to link to Delete/Edit 
-    # and 'messages.user_id' to check if the current user owns the post
-    query = '''
-        SELECT 
-            messages.id, 
-            messages.content, 
-            messages.timestamp, 
-            messages.user_id, 
-            users.username, 
-            users.age
-        FROM messages
-        JOIN users ON messages.user_id = users.id
-        ORDER BY messages.timestamp DESC
-    '''
-    rows = db.execute(query).fetchall()
-    db.close()
-
     # Convert to standard dictionaries so Jinja2 can read them easily
     messages_list = [dict(row) for row in rows]
 
