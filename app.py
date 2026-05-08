@@ -14,7 +14,7 @@ from datetime import datetime
 # -----------------------
 app = FastAPI()
 
-# Ensure you have a 'static' folder for your logo.png
+# Mount static folder for logo.png
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 
@@ -236,10 +236,6 @@ async def reset_submit(request: Request, old_password: str = Form(...), new_pass
 # -----------------------
 @app.get("/api/messages")
 async def get_messages_json():
-    """
-    Returns all chirps in a machine-readable JSON format.
-    Useful for external apps or data analysis.
-    """
     db = get_db()
     query = '''
         SELECT messages.id, messages.content, messages.timestamp, 
@@ -249,11 +245,9 @@ async def get_messages_json():
         ORDER BY messages.timestamp DESC
     '''
     rows = db.execute(query).fetchall()
-    # Convert sqlite rows into a list of dictionaries
     messages_list = [dict(row) for row in rows]
     db.close()
     
-    # Returning a list/dict in FastAPI automatically sends JSON
     return {
         "status": "success",
         "count": len(messages_list),
@@ -265,4 +259,5 @@ async def get_messages_json():
 # -----------------------
 if __name__ == "__main__":
     import uvicorn
+    # Back to local-only for stability
     uvicorn.run(app, host="127.0.0.1", port=8000)
