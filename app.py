@@ -10,6 +10,23 @@ import re
 import html
 from datetime import datetime
 
+LANGUAGES = {
+    "en": {
+        "home": "Home", "profile": "My Profile", "post": "New Post", "settings": "Settings", 
+        "logout": "Logout", "login": "Login", "register": "Register", "search_placeholder": "Search chirps...",
+        "feed_label": "Latest Feed", "reply": "Reply", "edit": "Edit", "delete": "Delete", "save": "Save"
+    },
+    "fr": {
+        "home": "Accueil", "profile": "Mon Profil", "post": "Nouveau Post", "settings": "Paramètres", 
+        "logout": "Déconnexion", "login": "Connexion", "register": "S'inscrire", "search_placeholder": "Chercher...",
+        "feed_label": "Flux Récent", "reply": "Répondre", "edit": "Modifier", "delete": "Supprimer", "save": "Enregistrer"
+    },
+    "zh": {
+        "home": "首页", "profile": "个人资料", "post": "发布动态", "settings": "设置", 
+        "logout": "退出登录", "login": "登录", "register": "注册", "search_placeholder": "搜索动态...",
+        "feed_label": "最新动态", "reply": "回复", "edit": "编辑", "delete": "删除", "save": "保存"
+    }
+}
 # -----------------------
 # APP SETUP
 # -----------------------
@@ -61,6 +78,14 @@ def get_db():
                  user_id INTEGER, 
                  message_id INTEGER, 
                  UNIQUE(user_id, message_id))''')
+    conn.execute('''CREATE TABLE IF NOT EXISTS messages (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, 
+    user_id INTEGER, 
+    content TEXT, 
+    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP, 
+    edited_at TEXT,
+    parent_id INTEGER DEFAULT NULL
+)''')
     conn.commit()
     return conn
 
@@ -407,6 +432,47 @@ async def edit_message_submit(msg_id: int, request: Request, content: str = Form
     db.close()
     return RedirectResponse("/", 303)
 
+@app.post("/reply/{parent_id}")
+async def post_reply(request: Request, parent_id: int, content: str = Form(...)):
+    u_id = request.cookies.get("user_id")
+    if not u_id: return RedirectResponse("/login", 303)
+    
+    db = get_db()
+    # Insert the reply pointing to the parent
+    cursor = db.execute(
+        "INSERT INTO messages (user_id, content, parent_id) VALUES (?, ?, ?)",
+        (int(u_id), content, parent_id)
+    )
+    msg_id = cursor.lastrowid
+    
+    # Sync with search index
+    db.execute("INSERT INTO messages_search (content, message_id) VALUES (?, ?)", (content, msg_id))
+    db.commit()
+    db.close()
+    
+    # Redirect back to the feed or the specific thread
+    return RedirectResponse("/", 303)
+
+def get_translations(request: Request):
+    # Get lang from cookie, default to 'en'
+    lang_code = request.cookies.get("language", "en")
+    # Return the dictionary for that language (fallback to English if code is invalid)
+    return LANGUAGES.get(lang_code, LANGUAGES["en"])
+
+# Register it so it's available in ALL templates automatically
+templates.env.globals["get_t"] = get_translations
+
+@app.get("/set_lang/{lang}")
+async def set_language(lang: str):
+    # 1. Prepare a redirect back to the home page
+    response = RedirectResponse(url="/", status_code=303)
+    
+    # 2. Check if the requested language is one we support
+    if lang in LANGUAGES:
+        # 3. Save the language code in a cookie for 30 days
+        response.set_cookie(key="language", value=lang, max_age=2592000)
+    
+    return response
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="127.0.0.1", port=8000)
