@@ -1,10 +1,15 @@
 {% extends "base.html" %}
 
 {% block content %}
-    <h2>Create New Message</h2>
-
+<div style="max-width: 600px; margin: 50px auto; padding: 20px; background: white; border: 4px solid #ffc2d1; border-radius: 20px;">
+    <h2 style="color: black;">What's on your mind?</h2>
+    
     <form action="/create_message" method="post">
-        <textarea name="msg" placeholder="What is on your mind?" required></textarea><br>
-        <button type="submit">Post to Feed</button>
+        <textarea name="content" required style="width: 100%; height: 150px; border: 2px solid #ffc2d1; border-radius: 10px; padding: 10px;"></textarea>
+        
+        <button type="submit" style="background: black; color: white; padding: 10px 20px; border-radius: 50px; margin-top: 10px; cursor: pointer; font-weight: bold;">
+            Post Chirp
+        </button>
     </form>
+</div>
 {% endblock %}

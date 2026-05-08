@@ -44,8 +44,20 @@ templates.env.globals["linkify"] = linkify
 def get_db():
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
+    
+    # This line is the "Safety Net"
+    # It creates the table immediately if it's missing
+    conn.execute('''
+        CREATE TABLE IF NOT EXISTS messages (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            content TEXT NOT NULL,
+            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+            edited_at TEXT
+        )
+    ''')
+    conn.commit()
     return conn
-
 
 # -----------------------
 # HOME
@@ -180,7 +192,18 @@ async def register_user(
 # -----------------------
 # CREATE MESSAGE
 # -----------------------
-@app.post("/create_message")
+@app.get("/create_message", response_class=HTMLResponse)
+async def create_message_page(request: Request):
+    # Check if the user is logged in before showing the form
+    if not request.cookies.get("user_id"):
+        return RedirectResponse("/login", status_code=303)
+        
+    return templates.TemplateResponse(
+        request=request,
+        name="create_message.html", 
+        context={"request": request}
+    )
+
 @app.post("/create_message")
 async def create_message(request: Request, content: str = Form(...)):
     user_id = request.cookies.get("user_id")
@@ -209,44 +232,73 @@ async def create_message(request: Request, content: str = Form(...)):
 # -----------------------
 @app.get("/delete_message/{msg_id}")
 async def delete(msg_id: int, request: Request):
-
     user_id = request.cookies.get("user_id")
 
+    if not user_id:
+        return RedirectResponse("/login", status_code=303)
+
     conn = get_db()
-    conn.execute(
-        "DELETE FROM messages WHERE id=? AND user_id=?",
-        (msg_id, user_id)
-    )
-    conn.commit()
-    conn.close()
+    try:
+        conn.execute(
+            "DELETE FROM messages WHERE id=? AND user_id=?",
+            (msg_id, int(user_id))
+        )
+        conn.commit()
+    except Exception as e:
+        print(f"Delete Error: {e}")
+    finally:
+        conn.close()
 
-    return RedirectResponse("/", 303)
-
+    return RedirectResponse("/", status_code=303)
 
 # -----------------------
 # EDIT MESSAGE
 # -----------------------
-@app.post("/edit_message/{msg_id}")
-async def edit(msg_id: int, request: Request, content: str = Form(...)):
-
+@app.get("/edit_message/{msg_id}", response_class=HTMLResponse)
+async def edit_message_page(msg_id: int, request: Request):
     user_id = request.cookies.get("user_id")
+    if not user_id:
+        return RedirectResponse("/login", status_code=303)
 
-    conn = get_db()
-    conn.execute("""
-        UPDATE messages
-        SET content=?, edited_at=?
-        WHERE id=? AND user_id=?
-    """, (
-        content,
-        datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        msg_id,
-        user_id
-    ))
+    db = get_db()
+    message = db.execute(
+        "SELECT * FROM messages WHERE id=? AND user_id=?", 
+        (msg_id, user_id)
+    ).fetchone()
+    db.close()
 
-    conn.commit()
-    conn.close()
+    if not message:
+        return HTMLResponse("Message not found or unauthorized", status_code=404)
 
-    return RedirectResponse("/", 303)
+    return templates.TemplateResponse(
+        request=request,
+        name="edit_message.html",
+        context={"request": request, "message": message}
+    )
+
+@app.post("/edit_message/{msg_id}")
+async def edit_message_submit(msg_id: int, request: Request, content: str = Form(...)):
+    user_id = request.cookies.get("user_id")
+    if not user_id:
+        return RedirectResponse("/login", status_code=303)
+
+    db = get_db()
+    try:
+        db.execute("""
+            UPDATE messages
+            SET content=?, edited_at=?
+            WHERE id=? AND user_id=?
+        """, (
+            content,
+            datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            msg_id,
+            user_id
+        ))
+        db.commit()
+    finally:
+        db.close()
+
+    return RedirectResponse("/", status_code=303)
 
 if __name__ == "__main__":
     import uvicorn
