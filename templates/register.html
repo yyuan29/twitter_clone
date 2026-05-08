@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div style="max-width: 400px; margin: 100px auto; padding: 40px; background-color: #ffffff; border: 4px solid #ffc2d1; border-radius: 20px; box-shadow: 0 10px 0 #ffe5ec;">
+    
+    <h1 style="color: #000000; font-family: 'Arial Black', sans-serif; text-align: center; margin-bottom: 30px;">Join Birdie</h1>
+
+    <form action="/register" method="post" style="display: flex; flex-direction: column; gap: 15px;">
+        <div>
+            <label style="display: block; font-weight: bold; margin-bottom: 5px;">Username</label>
+            <input type="text" name="username" required style="width: 100%; padding: 12px; border: 2px solid #ffc2d1; border-radius: 10px; box-sizing: border-box;">
+        </div>
+
+        <div>
+            <label style="display: block; font-weight: bold; margin-bottom: 5px;">Age</label>
+            <input type="number" name="age" required style="width: 100%; padding: 12px; border: 2px solid #ffc2d1; border-radius: 10px; box-sizing: border-box;">
+        </div>
+
+        <div>
+            <label style="display: block; font-weight: bold; margin-bottom: 5px;">Password</label>
+            <input type="password" name="password" required style="width: 100%; padding: 12px; border: 2px solid #ffc2d1; border-radius: 10px; box-sizing: border-box;">
+        </div>
+
+        <button type="submit" style="background-color: #000000; color: #ffffff; padding: 15px; border: none; border-radius: 10px; font-weight: bold; font-size: 1rem; cursor: pointer; margin-top: 10px;">
+            Create Account
+        </button>
+    </form>
+
+    <p style="text-align: center; margin-top: 20px; font-size: 0.9rem;">
+        Already have an account? <a href="/login" style="color: #000000; font-weight: bold;">Login here</a>
+    </p>
+</div>
+{% endblock %}

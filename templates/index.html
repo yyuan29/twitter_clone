@@ -1,15 +1,89 @@
-{% for m in messages %}
-<div class="message-item">
-    <p><strong>{{ m.username }}</strong> (Age: {{ m.age }}) at {{ m.timestamp }}</p>
-    <p>{{ linkify(m.content) | safe }}</p>
+{% extends "base.html" %}
 
-    {% if request.cookies.get("user_id") and request.cookies.get("user_id")|int == m.user_id %}
-    <div class="actions">
-        <a href="/edit_message/{{ m.id }}">Edit</a> |
-        <a href="/delete_message/{{ m.id }}" style="color:red;">Delete</a>
-    </div>
-    {% endif %}
+{% block content %}
+<div style="display: block; width: 100%; clear: both; font-family: 'Helvetica Neue', Arial, sans-serif; background-color: #fff0f3; min-height: 100vh;">
+    
+    <header style="display: flex; align-items: center; padding: 40px 20px; background-color: #ffe5ec; border-bottom: 4px solid #ffc2d1;">
+        <div class="logo-box">
+            <img src="/static/logo.png" alt="Birdie Logo" style="height: 90px; width: auto; margin-right: 30px;">
+        </div>
 
-    <hr>
+        <div class="header-text">
+            <h1 style="margin: 0; font-size: 3rem; color: #000000; font-family: 'Arial Black', sans-serif; letter-spacing: -1px;">BirdieMessages</h1>
+            
+            <nav style="font-size: 1.1rem; margin-top: 10px; font-weight: bold;">
+                <a href="/" style="color: #000000; text-decoration: none; border-bottom: 2px solid #ffc2d1;">Home</a>
+                
+                <span style="color: #ffc2d1; margin: 0 10px;">|</span>
+                
+                {% if user %}
+                    <a href="/create_message" style="color: #000000; text-decoration: none; border-bottom: 2px solid #ffc2d1;">Post</a>
+                    <span style="color: #ffc2d1; margin: 0 10px;">|</span>
+                    <a href="/logout" style="color: #000000; text-decoration: none; border-bottom: 2px solid #ffc2d1;">Logout</a>
+                {% else %}
+                    <a href="/login" style="color: #000000; text-decoration: none; border-bottom: 2px solid #ffc2d1;">Login</a>
+                    <span style="color: #ffc2d1; margin: 0 10px;">|</span>
+                    <a href="/register" style="color: #000000; text-decoration: none; border-bottom: 2px solid #ffc2d1;">Register</a>
+                {% endif %}
+            </nav>
+        </div>
+    </header>
+
+    <main style="padding: 40px 20px; max-width: 900px; margin: 0 auto;">
+        
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px;">
+            <h2 style="font-size: 2.2rem; color: #000000; margin: 0; border-left: 10px solid #ffc2d1; padding-left: 15px;">Latest Feed</h2>
+            
+            {% if user %}
+                <a href="/create_message" style="background-color: #000000; color: #ffffff; padding: 12px 25px; border-radius: 50px; text-decoration: none; font-weight: bold; font-size: 0.9rem; text-transform: uppercase;">
+                    + New Message
+                </a>
+            {% endif %}
+        </div>
+
+        {% if user %}
+            <p style="margin-bottom: 30px; font-size: 1.1rem;">Logged in as: <strong style="text-decoration: underline;">{{ user }}</strong></p>
+        {% endif %}
+
+        <div class="feed">
+            {% if not messages %}
+                <div style="text-align: center; padding: 100px 20px; color: #666; font-style: italic; background: white; border-radius: 20px; border: 2px dashed #ffc2d1;">
+                    <p style="font-size: 1.2rem;">Silence in the nest... Be the first to chirp!</p>
+                    <a href="/register" style="color: #000000; font-weight: bold;">Register to post</a>
+                </div>
+            {% endif %}
+
+            {% for m in messages %}
+                <div class="message-card" style="background-color: #ffffff; padding: 25px; border-radius: 20px; border: 2px solid #ffc2d1; margin-bottom: 20px; box-shadow: 0 6px 0 #ffe5ec;">
+                    
+                    <div style="margin-bottom: 12px;">
+                        <span style="background-color: #ffe5ec; color: #000000; font-weight: bold; padding: 4px 12px; border-radius: 8px; font-size: 1rem;">
+                            @{{ m.username }}
+                        </span>
+                        <span style="color: #666; font-size: 0.9rem; margin-left: 10px;">
+                            (Age: {{ m.age }}) · {{ m.timestamp }}
+                        </span>
+                    </div>
+
+                    <div style="font-size: 1.3rem; line-height: 1.5; color: #000000; margin-bottom: 15px; word-wrap: break-word;">
+                        {{ linkify(m.content) | safe }}
+                    </div>
+
+                    {% if m.edited_at %}
+                        <div style="font-size: 0.8rem; color: #999; font-style: italic; margin-bottom: 15px;">
+                            (edited {{ m.edited_at }})
+                        </div>
+                    {% endif %}
+
+                    {% if request.cookies.get("user_id")|string == m.user_id|string %}
+                        <div style="border-top: 1px solid #ffe5ec; padding-top: 15px; display: flex; gap: 20px;">
+                            <a href="/edit_message/{{ m.id }}" style="color: #000000; text-decoration: none; font-weight: bold; font-size: 0.8rem; letter-spacing: 1px;">[ EDIT ]</a>
+                            <a href="/delete_message/{{ m.id }}" style="color: #ff4d6d; text-decoration: none; font-weight: bold; font-size: 0.8rem; letter-spacing: 1px;" onclick="return confirm('Delete this birdie?')">[ DELETE ]</a>
+                        </div>
+                    {% endif %}
+                </div>
+            {% endfor %}
+        </div>
+    </main>
 </div>
-{% endfor %}
+{% endblock %}

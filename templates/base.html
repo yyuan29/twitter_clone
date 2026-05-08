@@ -1,43 +1,12 @@
 <!DOCTYPE html>
-<html lang="en">
-
+<html>
 <head>
-    <meta charset="UTF-8">
-
-    <title>{% block title %}BirdieMessages{% endblock %}</title>
-
-    <!-- CSS -->
-    <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}">
+    <title>Birdie</title>
+    <link rel="stylesheet" href="/static/style.css">
 </head>
+<body style="background-color: #fff0f3; margin: 0; padding: 0;">
 
-<body>
-
-    <header>
-
-        <!-- LOGO -->
-        <div class="logo-container">
-            <img src="{{ url_for('static', path='logo.png') }}" alt="Logo" width="60">
-
-            <h1>BirdieMessages</h1>
-        </div>
-
-        <nav>
-            <a href="/">Home</a>
-
-            {% if user %}
-                <a href="/create_message">Post</a>
-                <a href="/logout">Logout</a>
-            {% else %}
-                <a href="/login">Login</a>
-                <a href="/create_user">Register</a>
-            {% endif %}
-        </nav>
-
-    </header>
-
-    <main>
-        {% block content %}{% endblock %}
-    </main>
+    {% block content %}{% endblock %}
 
 </body>
 </html>
