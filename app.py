@@ -149,19 +149,30 @@ async def register_user(
 ):
     db = get_db()
     try:
-        # Insert the new user into the users table
+        # SAFETY CHECK: Create the table if it somehow vanished
+        db.execute('''
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT UNIQUE NOT NULL,
+                password TEXT NOT NULL,
+                age INTEGER NOT NULL
+            )
+        ''')
+
+        # Now do the insert
         db.execute(
             "INSERT INTO users (username, password, age) VALUES (?, ?, ?)",
             (username, password, age)
         )
         db.commit()
         
-        # After registering, send them to login
-        response = RedirectResponse(url="/login", status_code=303)
-        return response
+        return RedirectResponse(url="/login", status_code=303)
+
     except sqlite3.IntegrityError:
-        # This happens if the username is already taken
-        return HTMLResponse(content="Username already exists! Go back and try another.", status_code=400)
+        return HTMLResponse(content="Username already exists!", status_code=400)
+    except Exception as e:
+        # This will tell us exactly what the database is complaining about
+        return HTMLResponse(content=f"Database Error: {e}", status_code=500)
     finally:
         db.close()
 
@@ -236,3 +247,7 @@ async def edit(msg_id: int, request: Request, content: str = Form(...)):
     conn.close()
 
     return RedirectResponse("/", 303)
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="127.0.0.1", port=8000)
