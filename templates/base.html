@@ -1,12 +1,60 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Birdie</title>
-    <link rel="stylesheet" href="/static/style.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BirdieMessages</title>
+    <style>
+        /* General layout styles to match your theme */
+        body { 
+            margin: 0; 
+            padding: 0; 
+            background-color: #fff0f3; 
+            font-family: 'Helvetica Neue', Arial, sans-serif; 
+        }
+        nav a {
+            color: #000000;
+            text-decoration: none;
+            border-bottom: 2px solid #ffc2d1;
+            transition: 0.2s;
+        }
+        nav a:hover {
+            background-color: #ffc2d1;
+        }
+    </style>
 </head>
-<body style="background-color: #fff0f3; margin: 0; padding: 0;">
+<body>
+
+    <header style="display: flex; align-items: center; padding: 40px 20px; background-color: #ffe5ec; border-bottom: 4px solid #ffc2d1;">
+        <div class="logo-box">
+            <img src="/static/logo.png" alt="Birdie Logo" style="height: 90px; width: auto; margin-right: 30px;">
+        </div>
+
+        <div class="header-text">
+            <h1 style="margin: 0; font-size: 3rem; color: #000000; font-family: 'Arial Black', sans-serif; letter-spacing: -1px;">BirdieMessages</h1>
+            
+            <nav style="font-size: 1.1rem; margin-top: 10px; font-weight: bold;">
+                <a href="/">Home</a>
+                <span style="color: #ffc2d1; margin: 0 10px;">|</span>
+                
+                {% if user %}
+                    <a href="/create_message">Post</a>
+                    <span style="color: #ffc2d1; margin: 0 10px;">|</span>
+                    <a href="/logout">Logout</a>
+                {% else %}
+                    <a href="/login">Login</a>
+                    <span style="color: #ffc2d1; margin: 0 10px;">|</span>
+                    <a href="/register">Register</a>
+                {% endif %}
+            </nav>
+        </div>
+    </header>
 
     {% block content %}{% endblock %}
+
+    <footer style="padding: 40px; text-align: center; color: #ffc2d1; font-size: 0.9rem;">
+        <p>&copy; 2026 BirdieMessages</p>
+    </footer>
 
 </body>
 </html>

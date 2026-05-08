@@ -14,39 +14,41 @@ from datetime import datetime
 # -----------------------
 app = FastAPI()
 
+# Ensure you have a 'static' folder for your logo.png
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 
 DB_PATH = os.path.join(os.path.dirname(__file__), "database.db")
 
-
 # -----------------------
-# SAFE LINKIFY
+# SAFE LINKIFY (EXTRA CREDIT)
 # -----------------------
 def linkify(text):
     if not text:
         return ""
-
     text = html.escape(str(text))
-
     return re.sub(
-        r'(https?://[^\s]+)',
-        r'<a href="\1" target="_blank">\1</a>',
+        r'(https?://[^\s]+|www\.[^\s]+)',
+        lambda m: f'<a href="{"http://" if m.group(0).startswith("www") else ""}{m.group(0)}" target="_blank">{m.group(0)}</a>',
         text
     )
 
 templates.env.globals["linkify"] = linkify
 
-
 # -----------------------
-# DB
+# DATABASE CONFIG
 # -----------------------
 def get_db():
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
-    
-    # This line is the "Safety Net"
-    # It creates the table immediately if it's missing
+    conn.execute('''
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT UNIQUE NOT NULL,
+            password TEXT NOT NULL,
+            age INTEGER NOT NULL
+        )
+    ''')
     conn.execute('''
         CREATE TABLE IF NOT EXISTS messages (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -60,81 +62,52 @@ def get_db():
     return conn
 
 # -----------------------
-# HOME
+# HOME FEED
 # -----------------------
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
     db = get_db()
-    messages_list = [] # Initialize so IDE is happy
-    
     query = '''
-        SELECT 
-            messages.id, 
-            messages.content, 
-            messages.timestamp, 
-            messages.user_id, 
-            messages.edited_at,
-            users.username, 
-            users.age
+        SELECT messages.id, messages.content, messages.timestamp, 
+               messages.user_id, messages.edited_at, users.username, users.age
         FROM messages
-        JOIN users ON messages.user_id = users.id
+        LEFT JOIN users ON messages.user_id = users.id
         ORDER BY messages.timestamp DESC
     '''
-    
-    try:
-        rows = db.execute(query).fetchall()
-        messages_list = [dict(row) for row in rows]
-    except sqlite3.OperationalError as e:
-        # If the table is missing, we catch it here
-        print(f"Table Error: {e}")
-        messages_list = [] 
-    finally:
-        db.close()
+    rows = db.execute(query).fetchall()
+    messages_list = [dict(row) for row in rows]
+    db.close()
 
     return templates.TemplateResponse(
         request=request,
         name="index.html",
         context={
-            "request": request,
             "messages": messages_list,
             "user": request.cookies.get("username")
         }
     )
 
-
 # -----------------------
-# LOGIN
+# LOGIN / LOGOUT
 # -----------------------
 @app.get("/login", response_class=HTMLResponse)
 async def login_page(request: Request):
-    return templates.TemplateResponse(
-    request=request, 
-    name="login.html", 
-    context={"request": request}
-)
+    return templates.TemplateResponse(request=request, name="login.html", context={})
 
 @app.post("/login")
 async def login(username: str = Form(...), password: str = Form(...)):
-
     conn = get_db()
-    user = conn.execute(
-        "SELECT * FROM users WHERE username=? AND password=?",
-        (username, password)
-    ).fetchone()
+    user = conn.execute("SELECT * FROM users WHERE username=? AND password=?", (username, password)).fetchone()
     conn.close()
-
+    
     if not user:
-        return HTMLResponse("Invalid login", 401)
-
+        return HTMLResponse("Invalid login. <a href='/login'>Try again</a>", 401)
+    
     resp = RedirectResponse("/", 303)
     resp.set_cookie("username", username)
     resp.set_cookie("user_id", str(user["id"]))
     return resp
 
-
-# -----------------------
-# LOGOUT
-# -----------------------
 @app.get("/logout")
 async def logout():
     resp = RedirectResponse("/", 303)
@@ -147,164 +120,149 @@ async def logout():
 # -----------------------
 @app.get("/register", response_class=HTMLResponse)
 async def register_page(request: Request):
-    return templates.TemplateResponse(
-        request=request,
-        name="register.html",
-        context={"request": request}
-    )
+    return templates.TemplateResponse(request=request, name="register.html", context={})
 
 @app.post("/register")
-async def register_user(
-    username: str = Form(...), 
-    password: str = Form(...), 
-    confirm_password: str = Form(...), # Match the name from the HTML
-    age: int = Form(...)
-):
-    # Logic to satisfy the project requirement:
+async def register_user(username: str = Form(...), password: str = Form(...), 
+                        confirm_password: str = Form(...), age: int = Form(...)):
     if password != confirm_password:
-        return HTMLResponse("Passwords do not match! Go back and try again.", status_code=400)
+        return HTMLResponse("Passwords do not match!", 400)
     
     db = get_db()
     try:
-        # SAFETY CHECK: Create the table if it somehow vanished
-        db.execute('''
-            CREATE TABLE IF NOT EXISTS users (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                username TEXT UNIQUE NOT NULL,
-                password TEXT NOT NULL,
-                age INTEGER NOT NULL
-            )
-        ''')
-
-        # Now do the insert
-        db.execute(
-            "INSERT INTO users (username, password, age) VALUES (?, ?, ?)",
-            (username, password, age)
-        )
+        cursor = db.execute("INSERT INTO users (username, password, age) VALUES (?, ?, ?)", (username, password, age))
         db.commit()
+        new_id = cursor.lastrowid
         
-        return RedirectResponse(url="/login", status_code=303)
-
+        resp = RedirectResponse(url="/", status_code=303)
+        resp.set_cookie("username", username)
+        resp.set_cookie("user_id", str(new_id))
+        return resp
     except sqlite3.IntegrityError:
-        return HTMLResponse(content="Username already exists!", status_code=400)
-    except Exception as e:
-        # This will tell us exactly what the database is complaining about
-        return HTMLResponse(content=f"Database Error: {e}", status_code=500)
+        return HTMLResponse("Username taken!", 400)
     finally:
         db.close()
 
-
 # -----------------------
-# CREATE MESSAGE
+# MESSAGES (CREATE / EDIT / DELETE)
 # -----------------------
 @app.get("/create_message", response_class=HTMLResponse)
 async def create_message_page(request: Request):
-    # Check if the user is logged in before showing the form
-    if not request.cookies.get("user_id"):
-        return RedirectResponse("/login", status_code=303)
-        
-    return templates.TemplateResponse(
-        request=request,
-        name="create_message.html", 
-        context={"request": request}
-    )
+    if not request.cookies.get("user_id"): return RedirectResponse("/login", 303)
+    return templates.TemplateResponse(request=request, name="create_message.html", context={})
 
 @app.post("/create_message")
 async def create_message(request: Request, content: str = Form(...)):
     user_id = request.cookies.get("user_id")
-
-    # If no cookie, send them to login
-    if not user_id:
-        return RedirectResponse("/login", status_code=303)
-
-    # Use the same function name we used in the index route
+    if not user_id: return RedirectResponse("/login", 303)
+    
     db = get_db() 
-    try:
-        db.execute(
-            "INSERT INTO messages (user_id, content) VALUES (?, ?)",
-            (int(user_id), content) # Ensure user_id is an integer for the DB
-        )
-        db.commit()
-    except Exception as e:
-        print(f"Error saving message: {e}")
-    finally:
-        db.close()
+    db.execute("INSERT INTO messages (user_id, content) VALUES (?, ?)", (int(user_id), content))
+    db.commit()
+    db.close()
+    return RedirectResponse("/", 303)
 
-    return RedirectResponse("/", status_code=303)
-
-# -----------------------
-# DELETE MESSAGE
-# -----------------------
-@app.get("/delete_message/{msg_id}")
-async def delete(msg_id: int, request: Request):
-    user_id = request.cookies.get("user_id")
-
-    if not user_id:
-        return RedirectResponse("/login", status_code=303)
-
-    conn = get_db()
-    try:
-        conn.execute(
-            "DELETE FROM messages WHERE id=? AND user_id=?",
-            (msg_id, int(user_id))
-        )
-        conn.commit()
-    except Exception as e:
-        print(f"Delete Error: {e}")
-    finally:
-        conn.close()
-
-    return RedirectResponse("/", status_code=303)
-
-# -----------------------
-# EDIT MESSAGE
-# -----------------------
 @app.get("/edit_message/{msg_id}", response_class=HTMLResponse)
 async def edit_message_page(msg_id: int, request: Request):
     user_id = request.cookies.get("user_id")
-    if not user_id:
-        return RedirectResponse("/login", status_code=303)
-
     db = get_db()
-    message = db.execute(
-        "SELECT * FROM messages WHERE id=? AND user_id=?", 
-        (msg_id, user_id)
-    ).fetchone()
+    message = db.execute("SELECT * FROM messages WHERE id=? AND user_id=?", (msg_id, user_id)).fetchone()
     db.close()
-
-    if not message:
-        return HTMLResponse("Message not found or unauthorized", status_code=404)
-
-    return templates.TemplateResponse(
-        request=request,
-        name="edit_message.html",
-        context={"request": request, "message": message}
-    )
+    
+    if not message: return HTMLResponse("Unauthorized", 403)
+    return templates.TemplateResponse(request=request, name="edit_message.html", context={"message": message})
 
 @app.post("/edit_message/{msg_id}")
 async def edit_message_submit(msg_id: int, request: Request, content: str = Form(...)):
     user_id = request.cookies.get("user_id")
-    if not user_id:
-        return RedirectResponse("/login", status_code=303)
-
     db = get_db()
-    try:
-        db.execute("""
-            UPDATE messages
-            SET content=?, edited_at=?
-            WHERE id=? AND user_id=?
-        """, (
-            content,
-            datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            msg_id,
-            user_id
-        ))
-        db.commit()
-    finally:
+    db.execute("UPDATE messages SET content=?, edited_at=? WHERE id=? AND user_id=?",
+               (content, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), msg_id, user_id))
+    db.commit()
+    db.close()
+    return RedirectResponse("/", 303)
+
+@app.get("/delete_message/{msg_id}")
+async def delete_msg(msg_id: int, request: Request):
+    user_id = request.cookies.get("user_id")
+    db = get_db()
+    db.execute("DELETE FROM messages WHERE id=? AND user_id=?", (msg_id, user_id))
+    db.commit()
+    db.close()
+    return RedirectResponse("/", 303)
+
+# -----------------------
+# ACCOUNT MANAGEMENT
+# -----------------------
+@app.get("/delete_account")
+async def delete_account(request: Request):
+    user_id = request.cookies.get("user_id")
+    if not user_id: return RedirectResponse("/login", 303)
+    
+    db = get_db()
+    db.execute("DELETE FROM messages WHERE user_id = ?", (user_id,))
+    db.execute("DELETE FROM users WHERE id = ?", (user_id,))
+    db.commit()
+    db.close()
+    
+    resp = RedirectResponse("/", 303)
+    resp.delete_cookie("username")
+    resp.delete_cookie("user_id")
+    return resp
+
+@app.get("/reset_password", response_class=HTMLResponse)
+async def reset_page(request: Request):
+    if not request.cookies.get("user_id"): return RedirectResponse("/login", 303)
+    return templates.TemplateResponse(request=request, name="reset_password.html", context={})
+
+@app.post("/reset_password")
+async def reset_submit(request: Request, old_password: str = Form(...), new_password: str = Form(...), confirm_new_password: str = Form(...)):
+    user_id = request.cookies.get("user_id")
+    if new_password != confirm_new_password: return HTMLResponse("Passwords mismatch", 400)
+    
+    db = get_db()
+    user = db.execute("SELECT password FROM users WHERE id = ?", (user_id,)).fetchone()
+    if not user or user["password"] != old_password:
         db.close()
+        return HTMLResponse("Old password wrong", 403)
+        
+    db.execute("UPDATE users SET password = ? WHERE id = ?", (new_password, user_id))
+    db.commit()
+    db.close()
+    return RedirectResponse("/", 303)
 
-    return RedirectResponse("/", status_code=303)
+# -----------------------
+# JSON API
+# -----------------------
+@app.get("/api/messages")
+async def get_messages_json():
+    """
+    Returns all chirps in a machine-readable JSON format.
+    Useful for external apps or data analysis.
+    """
+    db = get_db()
+    query = '''
+        SELECT messages.id, messages.content, messages.timestamp, 
+               messages.user_id, messages.edited_at, users.username
+        FROM messages
+        LEFT JOIN users ON messages.user_id = users.id
+        ORDER BY messages.timestamp DESC
+    '''
+    rows = db.execute(query).fetchall()
+    # Convert sqlite rows into a list of dictionaries
+    messages_list = [dict(row) for row in rows]
+    db.close()
+    
+    # Returning a list/dict in FastAPI automatically sends JSON
+    return {
+        "status": "success",
+        "count": len(messages_list),
+        "data": messages_list
+    }
 
+# -----------------------
+# SERVER START
+# -----------------------
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="127.0.0.1", port=8000)
