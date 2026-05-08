@@ -17,21 +17,43 @@
             margin: 0; padding: 0; color: #333;
         }
 
-        /* HEADER & NAV */
+        /* HEADER & NAVIGATION */
         .birdie-header {
             background-color: var(--birdie-pink);
-            padding: 20px 0;
+            padding: 25px 0;
             border-bottom: 2px solid var(--birdie-border);
             text-align: center;
         }
 
-        .title-nav h1 { font-size: 38px; margin: 0; font-weight: 800; }
-        .title-nav nav { margin-top: 10px; font-weight: 600; }
-        .title-nav nav a { text-decoration: none; color: #444; margin: 0 12px; }
+        .title-nav h1 { font-size: 38px; margin: 0; font-weight: 800; color: #000; }
+        .title-nav nav { margin: 15px 0; font-weight: 600; }
+        .title-nav nav a { text-decoration: none; color: #444; margin: 0 12px; transition: 0.2s; }
         .title-nav nav a:hover { color: var(--birdie-dark-pink); }
 
-        /* FEED LAYOUT */
+        /* SEARCH BAR */
+        .search-container { margin-top: 10px; }
+        .search-input {
+            padding: 10px 20px;
+            border-radius: 25px;
+            border: 1px solid var(--birdie-border);
+            width: 50%;
+            max-width: 400px;
+            outline: none;
+        }
+        .search-btn {
+            padding: 10px 20px;
+            border-radius: 25px;
+            border: none;
+            background: var(--birdie-dark-pink);
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+            margin-left: -50px; /* Overlap slightly for a clean look */
+        }
+
+        /* MAIN CONTENT */
         .container { max-width: 700px; margin: 30px auto; padding: 0 20px; }
+        
         .feed-label {
             display: inline-block; background: #eee; padding: 5px 15px;
             border-radius: 5px; font-weight: bold; margin-bottom: 20px;
@@ -49,62 +71,109 @@
             border: 3px solid var(--birdie-dark-pink); background-color: white; padding: 3px;
         }
 
-        /* MENTIONS STYLING */
+        /* MENTIONS & LINKS */
         .mention {
             color: var(--birdie-dark-pink); background-color: #fff0f3;
             padding: 2px 4px; border-radius: 4px; font-weight: bold; text-decoration: none;
         }
+        .mention:hover { text-decoration: underline; background-color: var(--birdie-pink); }
 
         .username { color: var(--birdie-dark-pink); font-weight: bold; text-decoration: none; font-size: 1.1em; }
+        
+        /* PAGINATION */
         .pagination { display: flex; justify-content: center; align-items: center; gap: 20px; margin: 40px 0; }
-        .next-btn { background-color: var(--birdie-dark-pink); padding: 10px 25px; border-radius: 12px; color: white; text-decoration: none; font-weight: bold; }
+        .next-btn { 
+            background-color: var(--birdie-dark-pink); padding: 10px 25px; 
+            border-radius: 12px; color: white; text-decoration: none; font-weight: bold; 
+        }
+
+        .no-results { text-align: center; color: #999; margin-top: 50px; }
     </style>
 </head>
 <body>
+
     <header class="birdie-header">
         <div class="header-content">
             <div class="title-nav">
                 <h1>BirdieMessages</h1>
+                
                 <nav>
                     <a href="/">Home</a>
                     {% if user and user != "None" %}
                         <a href="/profile/{{ user }}">My Profile</a>
                         <a href="/create_message">New Post</a>
-                        <a href="/logout">Logout</a>
+                        <a href="/logout" style="color: #888;">Logout</a>
                     {% else %}
                         <a href="/login">Login</a>
                         <a href="/register">Register</a>
                     {% endif %}
                 </nav>
+
+                <div class="search-container">
+                    <form action="/search" method="get">
+                        <input type="text" name="q" class="search-input" placeholder="Search for chirps..." value="{{ search_query or '' }}">
+                        <button type="submit" class="search-btn">🔍</button>
+                    </form>
+                </div>
             </div>
         </div>
     </header>
 
     <div class="container">
-        <div class="feed-label">Latest Feed</div>
-        {% if user and user != "None" %}
-            <p>Logged in as: <span style="color:var(--birdie-dark-pink)">@{{ user }}</span></p>
+        {% if search_query %}
+            <div class="feed-label">Search Results for "{{ search_query }}"</div>
+            <p><a href="/" style="color: var(--birdie-dark-pink); text-decoration: none;">← Back to full feed</a></p>
+        {% else %}
+            <div class="feed-label">Latest Feed</div>
+            {% if user and user != "None" %}
+                <p style="font-size: 0.9em; color: #777;">Chirping as <span style="color:var(--birdie-dark-pink); font-weight: bold;">@{{ user }}</span></p>
+            {% endif %}
         {% endif %}
 
         <main>
             {% for msg in messages %}
             <div class="chirp-card">
-                <img src="https://api.dicebear.com/7.x/fun-emoji/svg?seed={{ msg.username }}" class="avatar-circle">
+                <div class="avatar-container">
+                    <img src="https://api.dicebear.com/7.x/fun-emoji/svg?seed={{ msg.username }}" 
+                         class="avatar-circle" alt="Avatar">
+                </div>
                 <div class="card-body">
-                    <a href="/profile/{{ msg.username }}" class="username">@{{ msg.username }}</a>
-                    <span style="color:#999;"> • {{ msg.age }}y/o</span>
-                    <div style="font-size: 1.1em; margin: 8px 0;">{{ linkify(msg.content) | safe }}</div>
-                    <div style="font-size: 0.8em; color: #ccc;">{{ msg.timestamp }}</div>
+                    <div class="card-header">
+                        <a href="/profile/{{ msg.username }}" class="username">@{{ msg.username }}</a>
+                        <span style="color:#bbb; font-size: 0.9em;"> • {{ msg.age }} years old</span>
+                    </div>
+                    
+                    <div style="font-size: 1.1em; margin: 10px 0; line-height: 1.4;">
+                        {{ linkify(msg.content) | safe }}
+                    </div>
+
+                    <div style="font-size: 0.8em; color: #ccc;">
+                        {{ msg.timestamp }}
+                    </div>
                 </div>
             </div>
+            {% else %}
+                <div class="no-results">
+                    <h3>No chirps found!</h3>
+                    <p>Try searching for something else or start a new conversation.</p>
+                </div>
             {% endfor %}
         </main>
 
+        {% if not search_query %}
         <div class="pagination">
-            {% if has_prev %}<a href="/?page={{ page - 1 }}" style="color:#888;">← Prev</a>{% endif %}
+            {% if has_prev %}
+                <a href="/?page={{ page - 1 }}" style="text-decoration:none; color:#888;">← Previous</a>
+            {% endif %}
+            
             <strong>Page {{ page }}</strong>
-            {% if has_next %}<a href="/?page={{ page + 1 }}" class="next-btn">Next 50 →</a>{% endif %}
+
+            {% if has_next %}
+                <a href="/?page={{ page + 1 }}" class="next-btn">Next 50 →</a>
+            {% endif %}
         </div>
+        {% endif %}
     </div>
+
 </body>
 </html>

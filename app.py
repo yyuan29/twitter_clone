@@ -53,6 +53,12 @@ def get_db():
     if 'bio' not in columns:
         conn.execute('ALTER TABLE users ADD COLUMN bio TEXT')
     
+    conn.execute('CREATE VIRTUAL TABLE IF NOT EXISTS messages_search USING fts5(content, message_id UNINDEXED)')
+    conn.execute('''CREATE TABLE IF NOT EXISTS likes 
+                (id INTEGER PRIMARY KEY AUTOINCREMENT, 
+                 user_id INTEGER, 
+                 message_id INTEGER, 
+                 UNIQUE(user_id, message_id))''')
     conn.commit()
     return conn
 
@@ -222,9 +228,92 @@ async def create_message(request: Request, content: str = Form(...)):
     u_id = request.cookies.get("user_id")
     if not u_id: return RedirectResponse("/login", 303)
     db = get_db()
+
+    # 1. Insert into main table
+    cursor = db.execute("INSERT INTO messages (user_id, content) VALUES (?, ?)", (int(u_id), content))
+    msg_id = cursor.lastrowid
+
+    # 2. Insert into FTS5 search table
+    db.execute("INSERT INTO messages_search (content, message_id) VALUES (?, ?)", (content, msg_id))
+
     db.execute("INSERT INTO messages (user_id, content) VALUES (?, ?)", (int(u_id), content))
     db.commit(); db.close()
     return RedirectResponse("/", 303)
+
+@app.get("/search", response_class=HTMLResponse)
+async def search_messages(request: Request, q: str = ""):
+    db = get_db()
+    
+    # 1. Clean the query
+    # Removing '@' ensures that searching '@yyuan29' finds the user 'yyuan29'
+    clean_q = q.replace("@", "").strip()
+    
+    # If the search is empty, just send them home
+    if not clean_q:
+        db.close()
+        return RedirectResponse("/", 303)
+
+    # 2. Sync FTS5 (Maintenance Step)
+    # If you just ran a population script, the search table might be empty.
+    # This line ensures the search index has data to look through.
+    count_search = db.execute("SELECT COUNT(*) FROM messages_search").fetchone()[0]
+    if count_search == 0:
+        db.execute("INSERT INTO messages_search(content, message_id) SELECT content, id FROM messages")
+        db.commit()
+
+    # 3. The "Smart Search" Query
+    # We use UNION to avoid the "MATCH in requested context" error.
+    # This finds: 
+    #   - Messages containing the word (via FTS5)
+    #   - Messages sent by a user whose name matches the query (via LIKE)
+    query = """
+        SELECT m.*, u.username, u.age 
+        FROM messages m
+        JOIN users u ON m.user_id = u.id
+        WHERE m.id IN (
+            SELECT message_id FROM messages_search WHERE messages_search MATCH ?
+        )
+        UNION
+        SELECT m.*, u.username, u.age 
+        FROM messages m
+        JOIN users u ON m.user_id = u.id
+        WHERE u.username LIKE ?
+        ORDER BY timestamp DESC
+    """
+    
+    # search_param uses double quotes for FTS5 exact matching
+    search_param = f'"{clean_q}"'
+    # like_param uses wildcards for partial username matching
+    like_param = f'%{clean_q}%'
+    
+    try:
+        msgs = db.execute(query, (search_param, like_param)).fetchall()
+    except sqlite3.OperationalError:
+        # Fallback if the FTS5 table is missing or corrupted
+        fallback = """
+            SELECT m.*, u.username, u.age 
+            FROM messages m
+            JOIN users u ON m.user_id = u.id
+            WHERE m.content LIKE ? OR u.username LIKE ?
+            ORDER BY timestamp DESC
+        """
+        msgs = db.execute(fallback, (like_param, like_param)).fetchall()
+    
+    db.close()
+    
+    # 4. Return the response
+    return templates.TemplateResponse(
+        request=request, 
+        name="index.html", 
+        context={
+            "messages": msgs, 
+            "user": request.cookies.get("username"),
+            "search_query": q,
+            "page": 1, 
+            "has_next": False, 
+            "has_prev": False
+        }
+    )
 
 # --- DELETE MESSAGE ---
 @app.get("/delete_message/{msg_id}")
