@@ -2,7 +2,6 @@ from fastapi import FastAPI, Request, Form
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
-
 import sqlite3
 import os
 import re
@@ -14,99 +13,113 @@ from datetime import datetime
 # -----------------------
 app = FastAPI()
 
-# Mount static folder for logo.png
+# Make sure you have a folder named 'static'
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
-
 DB_PATH = os.path.join(os.path.dirname(__file__), "database.db")
 
-# -----------------------
-# SAFE LINKIFY (EXTRA CREDIT)
-# -----------------------
+# --- UTILS ---
 def linkify(text):
-    if not text:
-        return ""
+    if not text: return ""
     text = html.escape(str(text))
-    return re.sub(
-        r'(https?://[^\s]+|www\.[^\s]+)',
-        lambda m: f'<a href="{"http://" if m.group(0).startswith("www") else ""}{m.group(0)}" target="_blank">{m.group(0)}</a>',
-        text
-    )
+    return re.sub(r'(https?://[^\s]+|www\.[^\s]+)', 
+                  lambda m: f'<a href="{"http://" if m.group(0).startswith("www") else ""}{m.group(0)}" target="_blank">{m.group(0)}</a>', 
+                  text)
 
 templates.env.globals["linkify"] = linkify
 
-# -----------------------
-# DATABASE CONFIG
-# -----------------------
 def get_db():
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
-    conn.execute('''
-        CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT UNIQUE NOT NULL,
-            password TEXT NOT NULL,
-            age INTEGER NOT NULL
-        )
-    ''')
-    conn.execute('''
-        CREATE TABLE IF NOT EXISTS messages (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
-            content TEXT NOT NULL,
-            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-            edited_at TEXT
-        )
-    ''')
+    # Ensure tables exist
+    conn.execute('CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT UNIQUE, password TEXT, age INTEGER, bio TEXT)')
+    conn.execute('CREATE TABLE IF NOT EXISTS messages (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, content TEXT, timestamp DATETIME DEFAULT CURRENT_TIMESTAMP, edited_at TEXT)')
+    
+    # Auto-fix: Add bio column to old databases if it's missing
+    cursor = conn.execute("PRAGMA table_info(users)")
+    columns = [column[1] for column in cursor.fetchall()]
+    if 'bio' not in columns:
+        conn.execute('ALTER TABLE users ADD COLUMN bio TEXT')
+    
     conn.commit()
     return conn
 
 # -----------------------
-# HOME FEED
+# HOME FEED (WITH PAGINATION)
 # -----------------------
 @app.get("/", response_class=HTMLResponse)
-async def index(request: Request):
+async def index(request: Request, page: int = 1):
+    if page < 1: page = 1
+    limit, offset = 50, (page - 1) * 50
     db = get_db()
-    query = '''
-        SELECT messages.id, messages.content, messages.timestamp, 
-               messages.user_id, messages.edited_at, users.username, users.age
-        FROM messages
+    total = db.execute("SELECT COUNT(*) FROM messages").fetchone()[0]
+    
+    query = f'''
+        SELECT messages.*, users.username, users.age FROM messages
         LEFT JOIN users ON messages.user_id = users.id
-        ORDER BY messages.timestamp DESC
+        ORDER BY messages.timestamp DESC LIMIT {limit} OFFSET {offset}
     '''
-    rows = db.execute(query).fetchall()
-    messages_list = [dict(row) for row in rows]
+    msgs = db.execute(query).fetchall()
     db.close()
-
+    
     return templates.TemplateResponse(
         request=request,
-        name="index.html",
+        name="index.html", 
         context={
-            "messages": messages_list,
-            "user": request.cookies.get("username")
+            "request": request, 
+            "messages": msgs, 
+            "user": request.cookies.get("username"),
+            "page": page, 
+            "has_next": (offset + limit) < total, 
+            "has_prev": page > 1
         }
     )
 
 # -----------------------
-# LOGIN / LOGOUT
+# AUTH ROUTES (LOGIN/REGISTER)
 # -----------------------
 @app.get("/login", response_class=HTMLResponse)
 async def login_page(request: Request):
-    return templates.TemplateResponse(request=request, name="login.html", context={})
+    return templates.TemplateResponse(
+        request=request,
+        name="login.html", 
+        context={"request": request}
+    )
 
 @app.post("/login")
 async def login(username: str = Form(...), password: str = Form(...)):
-    conn = get_db()
-    user = conn.execute("SELECT * FROM users WHERE username=? AND password=?", (username, password)).fetchone()
-    conn.close()
-    
-    if not user:
-        return HTMLResponse("Invalid login. <a href='/login'>Try again</a>", 401)
+    db = get_db()
+    user = db.execute("SELECT * FROM users WHERE username=? AND password=?", (username, password)).fetchone()
+    db.close()
+    if not user: return HTMLResponse("Invalid login. <a href='/login'>Try again</a>", 401)
     
     resp = RedirectResponse("/", 303)
     resp.set_cookie("username", username)
     resp.set_cookie("user_id", str(user["id"]))
     return resp
+
+@app.get("/register", response_class=HTMLResponse)
+async def register_page(request: Request):
+    return templates.TemplateResponse(
+        request=request,
+        name="register.html", 
+        context={"request": request}
+    )
+
+@app.post("/register")
+async def register_user(username: str = Form(...), password: str = Form(...), confirm_password: str = Form(...), age: int = Form(...)):
+    if password != confirm_password: return HTMLResponse("Passwords mismatch", 400)
+    db = get_db()
+    try:
+        # We include a blank bio "" so the new account is ready
+        cursor = db.execute("INSERT INTO users (username, password, age, bio) VALUES (?, ?, ?, ?)", (username, password, age, ""))
+        db.commit()
+        resp = RedirectResponse("/", 303)
+        resp.set_cookie("username", username)
+        resp.set_cookie("user_id", str(cursor.lastrowid))
+        return resp
+    except sqlite3.IntegrityError: return HTMLResponse("Username taken!", 400)
+    finally: db.close()
 
 @app.get("/logout")
 async def logout():
@@ -116,148 +129,104 @@ async def logout():
     return resp
 
 # -----------------------
-# REGISTER
+# PROFILE & BIO ROUTES
 # -----------------------
-@app.get("/register", response_class=HTMLResponse)
-async def register_page(request: Request):
-    return templates.TemplateResponse(request=request, name="register.html", context={})
-
-@app.post("/register")
-async def register_user(username: str = Form(...), password: str = Form(...), 
-                        confirm_password: str = Form(...), age: int = Form(...)):
-    if password != confirm_password:
-        return HTMLResponse("Passwords do not match!", 400)
-    
+@app.get("/profile/{username}", response_class=HTMLResponse)
+async def view_profile(request: Request, username: str):
     db = get_db()
-    try:
-        cursor = db.execute("INSERT INTO users (username, password, age) VALUES (?, ?, ?)", (username, password, age))
-        db.commit()
-        new_id = cursor.lastrowid
-        
-        resp = RedirectResponse(url="/", status_code=303)
-        resp.set_cookie("username", username)
-        resp.set_cookie("user_id", str(new_id))
-        return resp
-    except sqlite3.IntegrityError:
-        return HTMLResponse("Username taken!", 400)
-    finally:
+    user_data = db.execute("SELECT * FROM users WHERE username = ?", (username,)).fetchone()
+    if not user_data:
         db.close()
+        return HTMLResponse("User not found", 404)
+    
+    msgs = db.execute('SELECT * FROM messages WHERE user_id = ? ORDER BY timestamp DESC LIMIT 10', (user_data['id'],)).fetchall()
+    db.close()
+    
+    return templates.TemplateResponse(
+        name="profile.html", 
+        context={
+            "request": request, 
+            "profile_user": user_data, 
+            "messages": msgs,
+            "is_own_profile": request.cookies.get("username") == username, 
+            "user": request.cookies.get("username")
+        }
+    )
+
+@app.post("/update_profile")
+async def update_profile(request: Request, bio: str = Form(...)):
+    username = request.cookies.get("username")
+    if not username: return RedirectResponse("/login", 303)
+    db = get_db()
+    db.execute("UPDATE users SET bio = ? WHERE username = ?", (bio, username))
+    db.commit()
+    db.close()
+    return RedirectResponse(f"/profile/{username}", 303)
 
 # -----------------------
-# MESSAGES (CREATE / EDIT / DELETE)
+# MESSAGE ROUTES
 # -----------------------
 @app.get("/create_message", response_class=HTMLResponse)
 async def create_message_page(request: Request):
     if not request.cookies.get("user_id"): return RedirectResponse("/login", 303)
-    return templates.TemplateResponse(request=request, name="create_message.html", context={})
+    return templates.TemplateResponse(
+        request=request,
+        name="create_message.html", 
+        context={"request": request}
+    )
 
 @app.post("/create_message")
 async def create_message(request: Request, content: str = Form(...)):
-    user_id = request.cookies.get("user_id")
-    if not user_id: return RedirectResponse("/login", 303)
+    u_id = request.cookies.get("user_id")
+    if not u_id: return RedirectResponse("/login", 303)
+    db = get_db()
+    db.execute("INSERT INTO messages (user_id, content) VALUES (?, ?)", (int(u_id), content))
+    db.commit(); db.close()
+    return RedirectResponse("/", 303)
+
+# --- DELETE MESSAGE ---
+@app.get("/delete_message/{msg_id}")
+async def delete_msg(msg_id: int, request: Request):
+    u_id = request.cookies.get("user_id")
+    if not u_id: return RedirectResponse("/login", 303)
     
-    db = get_db() 
-    db.execute("INSERT INTO messages (user_id, content) VALUES (?, ?)", (int(user_id), content))
+    db = get_db()
+    # Ensure only the owner can delete their message
+    db.execute("DELETE FROM messages WHERE id=? AND user_id=?", (msg_id, int(u_id)))
     db.commit()
     db.close()
     return RedirectResponse("/", 303)
 
+# --- EDIT MESSAGE ---
 @app.get("/edit_message/{msg_id}", response_class=HTMLResponse)
-async def edit_message_page(msg_id: int, request: Request):
-    user_id = request.cookies.get("user_id")
+async def edit_message_page(request: Request, msg_id: int):
+    u_id = request.cookies.get("user_id")
+    if not u_id: return RedirectResponse("/login", 303)
+    
     db = get_db()
-    message = db.execute("SELECT * FROM messages WHERE id=? AND user_id=?", (msg_id, user_id)).fetchone()
+    msg = db.execute("SELECT * FROM messages WHERE id=? AND user_id=?", (msg_id, int(u_id))).fetchone()
     db.close()
     
-    if not message: return HTMLResponse("Unauthorized", 403)
-    return templates.TemplateResponse(request=request, name="edit_message.html", context={"message": message})
+    if not msg: return HTMLResponse("Message not found or unauthorized", 404)
+    
+    return templates.TemplateResponse(
+        request=request,
+        name="edit_message.html", 
+        context={"request": request, "message": msg, "user": request.cookies.get("username")}
+    )
 
 @app.post("/edit_message/{msg_id}")
 async def edit_message_submit(msg_id: int, request: Request, content: str = Form(...)):
-    user_id = request.cookies.get("user_id")
+    u_id = request.cookies.get("user_id")
+    if not u_id: return RedirectResponse("/login", 303)
+    
     db = get_db()
-    db.execute("UPDATE messages SET content=?, edited_at=? WHERE id=? AND user_id=?",
-               (content, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), msg_id, user_id))
+    db.execute("UPDATE messages SET content=?, edited_at=? WHERE id=? AND user_id=?", 
+               (content, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), msg_id, int(u_id)))
     db.commit()
     db.close()
     return RedirectResponse("/", 303)
 
-@app.get("/delete_message/{msg_id}")
-async def delete_msg(msg_id: int, request: Request):
-    user_id = request.cookies.get("user_id")
-    db = get_db()
-    db.execute("DELETE FROM messages WHERE id=? AND user_id=?", (msg_id, user_id))
-    db.commit()
-    db.close()
-    return RedirectResponse("/", 303)
-
-# -----------------------
-# ACCOUNT MANAGEMENT
-# -----------------------
-@app.get("/delete_account")
-async def delete_account(request: Request):
-    user_id = request.cookies.get("user_id")
-    if not user_id: return RedirectResponse("/login", 303)
-    
-    db = get_db()
-    db.execute("DELETE FROM messages WHERE user_id = ?", (user_id,))
-    db.execute("DELETE FROM users WHERE id = ?", (user_id,))
-    db.commit()
-    db.close()
-    
-    resp = RedirectResponse("/", 303)
-    resp.delete_cookie("username")
-    resp.delete_cookie("user_id")
-    return resp
-
-@app.get("/reset_password", response_class=HTMLResponse)
-async def reset_page(request: Request):
-    if not request.cookies.get("user_id"): return RedirectResponse("/login", 303)
-    return templates.TemplateResponse(request=request, name="reset_password.html", context={})
-
-@app.post("/reset_password")
-async def reset_submit(request: Request, old_password: str = Form(...), new_password: str = Form(...), confirm_new_password: str = Form(...)):
-    user_id = request.cookies.get("user_id")
-    if new_password != confirm_new_password: return HTMLResponse("Passwords mismatch", 400)
-    
-    db = get_db()
-    user = db.execute("SELECT password FROM users WHERE id = ?", (user_id,)).fetchone()
-    if not user or user["password"] != old_password:
-        db.close()
-        return HTMLResponse("Old password wrong", 403)
-        
-    db.execute("UPDATE users SET password = ? WHERE id = ?", (new_password, user_id))
-    db.commit()
-    db.close()
-    return RedirectResponse("/", 303)
-
-# -----------------------
-# JSON API
-# -----------------------
-@app.get("/api/messages")
-async def get_messages_json():
-    db = get_db()
-    query = '''
-        SELECT messages.id, messages.content, messages.timestamp, 
-               messages.user_id, messages.edited_at, users.username
-        FROM messages
-        LEFT JOIN users ON messages.user_id = users.id
-        ORDER BY messages.timestamp DESC
-    '''
-    rows = db.execute(query).fetchall()
-    messages_list = [dict(row) for row in rows]
-    db.close()
-    
-    return {
-        "status": "success",
-        "count": len(messages_list),
-        "data": messages_list
-    }
-
-# -----------------------
-# SERVER START
-# -----------------------
 if __name__ == "__main__":
     import uvicorn
-    # Back to local-only for stability
     uvicorn.run(app, host="127.0.0.1", port=8000)
