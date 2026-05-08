@@ -1,0 +1,12 @@
+<div class="profile-header" style="text-align: center; padding: 20px;">
+    <img src="https://api.dicebear.com/7.x/icons/svg?seed={{ profile_user.username }}" 
+         alt="Profile Picture" 
+         style="width: 120px; height: 120px; border-radius: 50%; border: 4px solid #fde2e4; background: white;">
+    
+    <h2 style="margin-top: 10px;">@{{ profile_user.username }}</h2>
+    <p><strong>Age:</strong> {{ profile_user.age }}</p>
+    
+    <div class="bio-section" style="background: #fff5f6; padding: 15px; border-radius: 10px; margin: 20px 0;">
+        <p>{{ profile_user.bio or "This user hasn't written a bio yet." }}</p>
+    </div>
+</div>

@@ -49,18 +49,31 @@ def get_db():
 # -----------------------
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request, page: int = 1):
-    if page < 1: page = 1
-    limit, offset = 50, (page - 1) * 50
-    db = get_db()
-    total = db.execute("SELECT COUNT(*) FROM messages").fetchone()[0]
+    # Ensure page is at least 1
+    if page < 1: 
+        page = 1
+        
+    limit = 50
+    offset = (page - 1) * limit
     
+    db = get_db()
+    
+    # 1. Get the total count of messages to calculate if there is a "Next" page
+    total_messages = db.execute("SELECT COUNT(*) FROM messages").fetchone()[0]
+    
+    # 2. Fetch only 50 messages for the current page
     query = f'''
         SELECT messages.*, users.username, users.age FROM messages
         LEFT JOIN users ON messages.user_id = users.id
-        ORDER BY messages.timestamp DESC LIMIT {limit} OFFSET {offset}
+        ORDER BY messages.timestamp DESC 
+        LIMIT {limit} OFFSET {offset}
     '''
     msgs = db.execute(query).fetchall()
     db.close()
+    
+    # Determine if buttons should be shown
+    has_next = (offset + limit) < total_messages
+    has_prev = page > 1
     
     return templates.TemplateResponse(
         request=request,
@@ -69,9 +82,9 @@ async def index(request: Request, page: int = 1):
             "request": request, 
             "messages": msgs, 
             "user": request.cookies.get("username"),
-            "page": page, 
-            "has_next": (offset + limit) < total, 
-            "has_prev": page > 1
+            "page": page,
+            "has_next": has_next,
+            "has_prev": has_prev
         }
     )
 

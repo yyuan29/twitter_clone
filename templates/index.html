@@ -1,81 +1,263 @@
-{% extends "base.html" %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Birdie - Home</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <style>
+        /* BIRDIE BRANDING STYLES */
+        body {
+            background-color: #ffffff;
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            color: #333;
+        }
 
-{% block content %}
-<main style="padding: 40px 20px; max-width: 900px; margin: 0 auto;">
-    
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px;">
-        <h2 style="font-size: 2.2rem; color: #000000; margin: 0; border-left: 10px solid #ffc2d1; padding-left: 15px;">Latest Feed</h2>
-        
-        {% if user %}
-            <a href="/create_message" style="background-color: #000000; color: #ffffff; padding: 12px 25px; border-radius: 50px; text-decoration: none; font-weight: bold; font-size: 0.9rem; text-transform: uppercase;">
-                + New Message
-            </a>
-        {% endif %}
-    </div>
+        .birdie-header {
+            background-color: #fde2e4; /* Signature Pink */
+            padding: 25px 0;
+            border-bottom: 2px solid #fad2d6;
+            margin-bottom: 30px;
+        }
 
-    {% if user %}
-        <p style="margin-bottom: 30px; font-size: 1.1rem;">Welcome back, <strong style="text-decoration: underline;">{{ user }}</strong>!</p>
-    {% endif %}
+        .header-content {
+            max-width: 900px;
+            margin: 0 auto;
+            display: flex;
+            align-items: center;
+            padding: 0 20px;
+        }
 
-    <div class="feed">
-        {% if not messages %}
-            <div style="text-align: center; padding: 100px 20px; color: #666; font-style: italic; background: white; border-radius: 20px; border: 2px dashed #ffc2d1;">
-                <p style="font-size: 1.2rem;">Silence in the nest... Be the first to chirp!</p>
-            </div>
-        {% endif %}
+        .main-logo {
+            width: 80px;
+            height: 80px;
+            margin-right: 20px;
+            border-radius: 12px;
+            background: white;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        }
 
-        {% for m in messages %}
-            <div class="message-card" style="background-color: #ffffff; padding: 25px; border-radius: 20px; border: 2px solid #ffc2d1; margin-bottom: 20px; box-shadow: 0 6px 0 #ffe5ec; display: flex; gap: 20px;">
-                
-                <img src="https://robohash.org/{{ m.username if m.username else 'anon' }}?set=set4" alt="avatar" 
-                     style="width: 70px; height: 70px; background-color: #ffe5ec; border-radius: 50%; border: 2px solid #ffc2d1; flex-shrink: 0;">
+        .title-nav h1 {
+            font-size: 42px;
+            margin: 0;
+            color: #000;
+            font-weight: 800;
+            letter-spacing: -1.5px;
+        }
 
-                <div style="flex-grow: 1;">
-                    <div style="margin-bottom: 12px;">
-                        <span style="background-color: #ffe5ec; color: #000000; font-weight: bold; padding: 4px 12px; border-radius: 8px; font-size: 1rem;">
-                            @{{ m.username if m.username else "Deleted User" }}
-                        </span>
-                        <span style="color: #666; font-size: 0.9rem; margin-left: 10px;">
-                            {% if m.age %}(Age: {{ m.age }}) · {% endif %}{{ m.timestamp }}
-                        </span>
-                    </div>
+        .title-nav nav {
+            margin-top: 5px;
+        }
 
-                    <div style="font-size: 1.3rem; line-height: 1.5; color: #000000; margin-bottom: 15px; word-wrap: break-word;">
-                        {{ linkify(m.content) | safe }}
-                    </div>
+        .title-nav nav a {
+            text-decoration: none;
+            color: #000;
+            font-weight: bold;
+            font-size: 15px;
+            margin-right: 15px;
+            opacity: 0.8;
+        }
 
-                    {% if m.edited_at %}
-                        <div style="font-size: 0.8rem; color: #999; font-style: italic; margin-bottom: 15px;">
-                            (last edited {{ m.edited_at }})
-                        </div>
+        .title-nav nav a:hover {
+            opacity: 1;
+            text-decoration: underline;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+
+        .feed-title {
+            border-left: 10px solid #fde2e4;
+            padding-left: 15px;
+            font-size: 32px;
+            margin-bottom: 25px;
+            font-weight: 700;
+        }
+
+        /* CHIRP CARDS */
+        .chirp-card {
+            background: #fff;
+            border: 1px solid #f0f0f0;
+            padding: 20px;
+            margin-bottom: 15px;
+            border-radius: 20px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+            transition: all 0.2s ease-in-out;
+        }
+
+        .chirp-card:hover {
+            border-color: #fad2d6;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 15px rgba(0,0,0,0.06);
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 12px;
+        }
+
+        /* AVATAR STYLING */
+        .avatar {
+            width: 55px;
+            height: 55px;
+            border-radius: 50%;
+            background-color: #fff;
+            border: 2px solid #fde2e4;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .username-link {
+            color: #ff4d6d;
+            font-weight: bold;
+            text-decoration: none;
+            font-size: 1.1em;
+        }
+
+        .card-content {
+            font-size: 18px;
+            line-height: 1.6;
+            margin-bottom: 15px;
+            word-wrap: break-word;
+            color: #444;
+        }
+
+        .card-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-top: 1px solid #fafafa;
+            padding-top: 10px;
+            color: #999;
+            font-size: 0.85em;
+        }
+
+        /* PAGINATION STYLING */
+        .pagination {
+            margin: 50px 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .pagination-btn {
+            background: #fde2e4;
+            padding: 12px 24px;
+            border-radius: 25px;
+            color: #000;
+            text-decoration: none;
+            font-weight: bold;
+            border: 1px solid #fad2d6;
+            transition: all 0.2s;
+        }
+
+        .pagination-btn:hover {
+            background: #fad2d6;
+            transform: translateY(-2px);
+        }
+
+        .btn-disabled {
+            color: #ccc;
+            padding: 12px 24px;
+            cursor: not-allowed;
+        }
+
+        .page-info {
+            font-weight: bold;
+            font-size: 1.1em;
+        }
+
+        .action-btns a {
+            margin-left: 10px;
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+
+    <header class="birdie-header">
+        <div class="header-content">
+            <img src="/static/logo.png" alt="Birdie" class="main-logo" onerror="this.src='https://api.dicebear.com/7.x/adventurer/svg?seed=birdie&backgroundColor=ffffff'">
+            <div class="title-nav">
+                <h1>BirdieMessages</h1>
+                <nav>
+                    <a href="/">Home</a>
+                    {% if user %}
+                        <a href="/profile/{{ user }}">My Profile</a>
+                        <a href="/create_message">New Post</a>
+                        <a href="/logout" style="color: #666;">Logout</a>
+                    {% else %}
+                        <a href="/login">Login</a>
+                        <a href="/register">Register</a>
                     {% endif %}
-
-                    {% if request.cookies.get("user_id")|string == m.user_id|string %}
-                        <div style="border-top: 1px solid #ffe5ec; padding-top: 15px; display: flex; gap: 20px;">
-                            <a href="/edit_message/{{ m.id }}" style="color: #000000; text-decoration: none; font-weight: bold; font-size: 0.8rem; letter-spacing: 1px;">[ EDIT ]</a>
-                            <a href="/delete_message/{{ m.id }}" style="color: #ff4d6d; text-decoration: none; font-weight: bold; font-size: 0.8rem; letter-spacing: 1px;" onclick="return confirm('Delete this chirp?')">[ DELETE ]</a>
-                        </div>
-                    {% endif %}
-                </div>
-            </div>
-        {% endfor %}
-    </div>
-
-    {% if user %}
-        <div style="margin-top: 80px; border-top: 3px solid #ffc2d1; padding: 40px 20px; text-align: center; background: #fff; border-radius: 20px; box-shadow: 0 4px 0 #ffe5ec; margin-bottom: 50px;">
-            <h3 style="margin-top: 0; color: #333;">Account Settings</h3>
-            <div style="display: flex; justify-content: center; gap: 30px; margin-top: 20px;">
-                <a href="/reset_password" style="color: #000; text-decoration: none; font-weight: bold; border-bottom: 2px solid #000;">Change Password</a>
-                <a href="/delete_account" 
-                   style="color: #ff4d6d; text-decoration: none; font-weight: bold; border-bottom: 2px solid #ff4d6d;" 
-                   onclick="return confirm('Delete your entire account? This cannot be undone.')">
-                   Delete My Account
-                </a>
-            </div>
-            <div style="margin-top: 30px;">
-                <a href="/api/messages" target="_blank" style="font-size: 0.8rem; color: #999; text-decoration: none; font-family: monospace;">[ VIEW RAW JSON DATA ]</a>
+                </nav>
             </div>
         </div>
-    {% endif %}
-</main>
-{% endblock %}
+    </header>
+
+    <div class="container">
+        <h2 class="feed-title">Latest Feed</h2>
+
+        <main>
+            {% for msg in messages %}
+                <article class="chirp-card">
+                    <div class="user-info">
+                        <img src="https://api.dicebear.com/7.x/adventurer/svg?seed={{ msg.username }}" 
+                             class="avatar" alt="Avatar">
+                        <div>
+                            <a href="/profile/{{ msg.username }}" class="username-link">@{{ msg.username }}</a>
+                            <small style="display: block; color: #777;">{{ msg.age }} years old</small>
+                        </div>
+                    </div>
+                    
+                    <div class="card-content">
+                        {{ linkify(msg.content) | safe }}
+                    </div>
+                    
+                    <div class="card-footer">
+                        <time datetime="{{ msg.timestamp }}">{{ msg.timestamp }}</time>
+                        
+                        <div class="action-btns">
+                            {% if user == msg.username %}
+                                <a href="/edit_message/{{ msg.id }}" style="color: #4a90e2;">Edit</a>
+                                <a href="/delete_message/{{ msg.id }}" style="color: #e0245e;" onclick="return confirm('Permanently delete this post?')">Delete</a>
+                            {% endif %}
+                        </div>
+                    </div>
+                </article>
+            {% else %}
+                <div style="text-align: center; padding: 60px;">
+                    <p style="font-size: 1.2em; color: #666;">The feed is empty! 🐦</p>
+                    <a href="/create_message" class="pagination-btn">Post the first Chirp</a>
+                </div>
+            {% endfor %}
+        </main>
+
+        <nav class="pagination">
+            {% if has_prev %}
+                <a href="/?page={{ page - 1 }}" class="pagination-btn">← Previous</a>
+            {% else %}
+                <span class="btn-disabled">← Previous</span>
+            {% endif %}
+            
+            <span class="page-info">Page {{ page }}</span>
+
+            {% if has_next %}
+                <a href="/?page={{ page + 1 }}" class="pagination-btn">Next →</a>
+            {% else %}
+                <span class="btn-disabled">Next →</span>
+            {% endif %}
+        </nav>
+    </div>
+
+</body>
+</html>
