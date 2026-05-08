@@ -157,8 +157,13 @@ async def register_page(request: Request):
 async def register_user(
     username: str = Form(...), 
     password: str = Form(...), 
+    confirm_password: str = Form(...), # Match the name from the HTML
     age: int = Form(...)
 ):
+    # Logic to satisfy the project requirement:
+    if password != confirm_password:
+        return HTMLResponse("Passwords do not match! Go back and try again.", status_code=400)
+    
     db = get_db()
     try:
         # SAFETY CHECK: Create the table if it somehow vanished
