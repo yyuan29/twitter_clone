@@ -2,6 +2,8 @@ from fastapi import FastAPI, Request, Form
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
+from passlib.hash import pbkdf2_sha256
+
 import sqlite3
 import os
 import re
@@ -158,6 +160,53 @@ async def logout():
     resp.delete_cookie("username")
     resp.delete_cookie("user_id")
     return resp
+
+@app.get("/reset_password", response_class=HTMLResponse)
+async def reset_password_page(request: Request):
+    user = request.cookies.get("username")
+    if not user:
+        return RedirectResponse("/login", 303)
+    return templates.TemplateResponse(request=request, name="reset_password.html", context={})
+
+@app.post("/reset_password")
+async def handle_reset_password(
+    request: Request, 
+    old_password: str = Form(...), 
+    new_password: str = Form(...), 
+    confirm_password: str = Form(...)
+):
+    username = request.cookies.get("username")
+    if not username:
+        return RedirectResponse("/login", 303)
+
+    # 1. Check if passwords match
+    if new_password != confirm_password:
+        return templates.TemplateResponse(
+            request=request, name="reset_password.html", 
+            context={"error": "New passwords do not match!"}
+        )
+
+    db = get_db()
+    user_record = db.execute("SELECT password FROM users WHERE username = ?", (username,)).fetchone()
+
+    # 2. Verify old password
+    if not user_record or not pbkdf2_sha256.verify(old_password, user_record["password"]):
+        db.close()
+        return templates.TemplateResponse(
+            request=request, 
+            name="reset_password.html", 
+            context=
+            {"error": "Current password is incorrect."}
+        )
+
+    # 3. Hash and update
+    new_hashed = pbkdf2_sha256.hash(new_password)
+    db.execute("UPDATE users SET password = ? WHERE username = ?", (new_hashed, username))
+    db.commit()
+    db.close()
+
+    # Success! Redirect to profile or home
+    return RedirectResponse(f"/profile/{username}", 303)
 
 # -----------------------
 # PROFILE & BIO ROUTES
