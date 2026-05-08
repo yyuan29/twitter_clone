@@ -14,12 +14,10 @@
         body {
             background-color: #fcfcfc;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            margin: 0;
-            padding: 0;
-            color: #333;
+            margin: 0; padding: 0; color: #333;
         }
 
-        /* PINK HEADER */
+        /* HEADER & NAV */
         .birdie-header {
             background-color: var(--birdie-pink);
             padding: 20px 0;
@@ -27,138 +25,56 @@
             text-align: center;
         }
 
-        .header-content {
-            max-width: 800px;
-            margin: 0 auto;
-        }
+        .title-nav h1 { font-size: 38px; margin: 0; font-weight: 800; }
+        .title-nav nav { margin-top: 10px; font-weight: 600; }
+        .title-nav nav a { text-decoration: none; color: #444; margin: 0 12px; }
+        .title-nav nav a:hover { color: var(--birdie-dark-pink); }
 
-        .title-nav h1 {
-            font-size: 38px;
-            margin: 0;
-            color: #000;
-            font-weight: 800;
-        }
-
-        .title-nav nav {
-            margin-top: 10px;
-        }
-
-        .title-nav nav a {
-            text-decoration: none;
-            color: #444;
-            margin: 0 10px;
-            font-weight: 600;
-        }
-
-        /* THE FEED */
-        .container {
-            max-width: 700px;
-            margin: 30px auto;
-            padding: 0 20px;
-        }
-
+        /* FEED LAYOUT */
+        .container { max-width: 700px; margin: 30px auto; padding: 0 20px; }
         .feed-label {
-            display: inline-block;
-            background: #eee;
-            padding: 5px 15px;
-            border-radius: 5px;
-            font-weight: bold;
-            margin-bottom: 20px;
+            display: inline-block; background: #eee; padding: 5px 15px;
+            border-radius: 5px; font-weight: bold; margin-bottom: 20px;
             border-left: 5px solid var(--birdie-dark-pink);
         }
 
-        /* MESSAGE CARDS */
         .chirp-card {
-            background: white;
-            border: 1px solid #eee;
-            border-radius: 25px; 
-            padding: 20px;
-            margin-bottom: 20px;
-            display: flex;
-            gap: 20px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.03);
-            align-items: center;
+            background: white; border: 1px solid #eee; border-radius: 25px;
+            padding: 20px; margin-bottom: 20px; display: flex; gap: 20px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.03); align-items: center;
         }
 
-        /* CUTE EMOJI AVATARS */
         .avatar-circle {
-            width: 80px;
-            height: 80px;
-            border-radius: 50%;
-            border: 4px solid var(--birdie-dark-pink);
-            background-color: #fff;
-            padding: 5px;
+            width: 70px; height: 70px; border-radius: 50%;
+            border: 3px solid var(--birdie-dark-pink); background-color: white; padding: 3px;
         }
 
-        .card-body {
-            flex-grow: 1;
+        /* MENTIONS STYLING */
+        .mention {
+            color: var(--birdie-dark-pink); background-color: #fff0f3;
+            padding: 2px 4px; border-radius: 4px; font-weight: bold; text-decoration: none;
         }
 
-        .username {
-            color: var(--birdie-dark-pink);
-            font-weight: bold;
-            text-decoration: none;
-            font-size: 1.2em;
-        }
-
-        .content {
-            font-size: 1.1em;
-            margin: 8px 0;
-            line-height: 1.4;
-        }
-
-        .card-footer {
-            font-size: 0.8em;
-            color: #bbb;
-        }
-
-        /* PAGINATION */
-        .pagination {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            gap: 20px;
-            margin: 40px 0;
-        }
-
-        .next-btn {
-            background-color: var(--birdie-dark-pink);
-            padding: 10px 25px;
-            border-radius: 12px;
-            color: white;
-            text-decoration: none;
-            font-weight: bold;
-            transition: 0.2s;
-        }
-
-        .next-btn:hover {
-            transform: scale(1.05);
-            background-color: #ff3355;
-        }
-
-        .btn-action {
-            background: #f8f8f8;
-            padding: 5px 10px;
-            border-radius: 8px;
-            text-decoration: none;
-            color: #666;
-            font-size: 0.8em;
-            margin-left: 5px;
-            border: 1px solid #eee;
-        }
+        .username { color: var(--birdie-dark-pink); font-weight: bold; text-decoration: none; font-size: 1.1em; }
+        .pagination { display: flex; justify-content: center; align-items: center; gap: 20px; margin: 40px 0; }
+        .next-btn { background-color: var(--birdie-dark-pink); padding: 10px 25px; border-radius: 12px; color: white; text-decoration: none; font-weight: bold; }
     </style>
 </head>
 <body>
-
     <header class="birdie-header">
         <div class="header-content">
             <div class="title-nav">
                 <h1>BirdieMessages</h1>
                 <nav>
-                    <a href="/">Home</a> | 
-                    <a href="/profile/{{ user }}">My Profile</a> | 
-                    <a href="/create_message">New Post</a> | 
-                    <a href="/logout">Logout</a>
+                    <a href="/">Home</a>
+                    {% if user and user != "None" %}
+                        <a href="/profile/{{ user }}">My Profile</a>
+                        <a href="/create_message">New Post</a>
+                        <a href="/logout">Logout</a>
+                    {% else %}
+                        <a href="/login">Login</a>
+                        <a href="/register">Register</a>
+                    {% endif %}
                 </nav>
             </div>
         </div>
@@ -166,47 +82,29 @@
 
     <div class="container">
         <div class="feed-label">Latest Feed</div>
-        <p style="color:#888;">Logged in as: <span style="color:var(--birdie-dark-pink)">@{{ user }}</span></p>
+        {% if user and user != "None" %}
+            <p>Logged in as: <span style="color:var(--birdie-dark-pink)">@{{ user }}</span></p>
+        {% endif %}
 
         <main>
             {% for msg in messages %}
             <div class="chirp-card">
-                <div class="avatar-container">
-                    <img src="https://api.dicebear.com/7.x/fun-emoji/svg?seed={{ msg.username }}" 
-                         class="avatar-circle" alt="Animal Emoji">
-                </div>
+                <img src="https://api.dicebear.com/7.x/fun-emoji/svg?seed={{ msg.username }}" class="avatar-circle">
                 <div class="card-body">
                     <a href="/profile/{{ msg.username }}" class="username">@{{ msg.username }}</a>
-                    <span style="color:#999;"> • {{ msg.age }} years old</span>
-                    
-                    <div class="content">
-                        {{ linkify(msg.content) | safe }}
-                    </div>
-
-                    <div class="card-footer">
-                        <span>card-footer: {{ msg.timestamp }}</span>
-                        {% if user == msg.username %}
-                            <a href="/edit_message/{{ msg.id }}" class="btn-action">Edit</a>
-                            <a href="/delete_message/{{ msg.id }}" class="btn-action" onclick="return confirm('Delete?')">Delete</a>
-                        {% endif %}
-                    </div>
+                    <span style="color:#999;"> • {{ msg.age }}y/o</span>
+                    <div style="font-size: 1.1em; margin: 8px 0;">{{ linkify(msg.content) | safe }}</div>
+                    <div style="font-size: 0.8em; color: #ccc;">{{ msg.timestamp }}</div>
                 </div>
             </div>
             {% endfor %}
         </main>
 
         <div class="pagination">
-            {% if has_prev %}
-                <a href="/?page={{ page - 1 }}" style="text-decoration:none; color:#888;">← Previous 50</a>
-            {% endif %}
-            
+            {% if has_prev %}<a href="/?page={{ page - 1 }}" style="color:#888;">← Prev</a>{% endif %}
             <strong>Page {{ page }}</strong>
-
-            {% if has_next %}
-                <a href="/?page={{ page + 1 }}" class="next-btn">Next 50 →</a>
-            {% endif %}
+            {% if has_next %}<a href="/?page={{ page + 1 }}" class="next-btn">Next 50 →</a>{% endif %}
         </div>
     </div>
-
 </body>
 </html>

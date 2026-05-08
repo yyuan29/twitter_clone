@@ -1,12 +1,114 @@
-<div class="profile-header" style="text-align: center; padding: 20px;">
-    <img src="https://api.dicebear.com/7.x/icons/svg?seed={{ profile_user.username }}" 
-         alt="Profile Picture" 
-         style="width: 120px; height: 120px; border-radius: 50%; border: 4px solid #fde2e4; background: white;">
-    
-    <h2 style="margin-top: 10px;">@{{ profile_user.username }}</h2>
-    <p><strong>Age:</strong> {{ profile_user.age }}</p>
-    
-    <div class="bio-section" style="background: #fff5f6; padding: 15px; border-radius: 10px; margin: 20px 0;">
-        <p>{{ profile_user.bio or "This user hasn't written a bio yet." }}</p>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Birdie - @{{ profile_user.username }}</title>
+    <style>
+        :root {
+            --birdie-pink: #fde2e4;
+            --birdie-dark-pink: #ff4d6d;
+            --birdie-border: #fad2d6;
+        }
+
+        body {
+            background-color: #fcfcfc;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0; padding: 0; color: #333;
+        }
+
+        .birdie-header {
+            background-color: var(--birdie-pink);
+            padding: 20px 0; border-bottom: 2px solid var(--birdie-border); text-align: center;
+        }
+
+        .title-nav h1 { font-size: 32px; margin: 0; font-weight: 800; }
+        .title-nav nav { margin-top: 10px; font-weight: 600; }
+        .title-nav nav a { text-decoration: none; color: #444; margin: 0 12px; }
+
+        .container { max-width: 700px; margin: 30px auto; padding: 0 20px; }
+
+        .profile-card {
+            background: white; border-radius: 30px; padding: 40px; text-align: center;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.05); margin-bottom: 30px; border: 1px solid #eee;
+        }
+
+        .avatar-large {
+            width: 120px; height: 120px; border-radius: 50%;
+            border: 5px solid var(--birdie-dark-pink); background-color: #fff; padding: 5px; margin-bottom: 15px;
+        }
+
+        .bio-display {
+            background: #fff5f6; padding: 20px; border-radius: 20px;
+            font-style: italic; color: #555; margin: 20px 0; border: 1px dashed var(--birdie-border);
+        }
+
+        .bio-edit-form textarea {
+            width: 100%; height: 80px; border-radius: 15px; border: 1px solid #ddd;
+            padding: 15px; font-family: inherit; resize: none; margin-bottom: 10px; box-sizing: border-box;
+        }
+
+        .save-btn {
+            background-color: var(--birdie-dark-pink); color: white; border: none;
+            padding: 10px 25px; border-radius: 10px; font-weight: bold; cursor: pointer;
+        }
+
+        .msg-card { background: white; padding: 20px; border-radius: 20px; margin-bottom: 15px; border: 1px solid #f0f0f0; }
+        
+        /* MENTIONS STYLING */
+        .mention {
+            color: var(--birdie-dark-pink); background-color: #fff0f3;
+            padding: 2px 4px; border-radius: 4px; font-weight: bold; text-decoration: none;
+        }
+    </style>
+</head>
+<body>
+    <header class="birdie-header">
+        <div class="header-content">
+            <div class="title-nav">
+                <h1>Birdie Profile</h1>
+                <nav>
+                    <a href="/">Home</a>
+                    {% if user and user != "None" %}
+                        <a href="/profile/{{ user }}">My Profile</a>
+                        <a href="/create_message">New Post</a>
+                        <a href="/logout">Logout</a>
+                    {% else %}
+                        <a href="/login">Login</a>
+                        <a href="/register">Register</a>
+                    {% endif %}
+                </nav>
+            </div>
+        </div>
+    </header>
+
+    <div class="container">
+        <div class="profile-card">
+            <img src="https://api.dicebear.com/7.x/fun-emoji/svg?seed={{ profile_user.username }}" class="avatar-large">
+            <h2 style="color: var(--birdie-dark-pink); margin:0;">@{{ profile_user.username }}</h2>
+            <p>{{ profile_user.age }} years old</p>
+
+            <div class="bio-display">
+                {% if profile_user.bio %}"{{ profile_user.bio }}"{% else %}"No bio yet..."{% endif %}
+            </div>
+
+            {% if is_own_profile %}
+                <div class="bio-edit-form">
+                    <form action="/update_profile" method="post">
+                        <textarea name="bio" placeholder="Update your bio...">{{ profile_user.bio or '' }}</textarea>
+                        <button type="submit" class="save-btn">Save Bio</button>
+                    </form>
+                </div>
+            {% endif %}
+        </div>
+
+        <h3 style="border-left: 5px solid var(--birdie-dark-pink); padding-left: 10px;">Chirps</h3>
+        {% for msg in messages %}
+            <div class="msg-card">
+                <div>{{ linkify(msg.content) | safe }}</div>
+                <small style="color: #ccc;">{{ msg.timestamp }}</small>
+            </div>
+        {% endfor %}
     </div>
-</div>
+</body>
+</html>

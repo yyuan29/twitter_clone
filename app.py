@@ -21,10 +21,22 @@ DB_PATH = os.path.join(os.path.dirname(__file__), "database.db")
 # --- UTILS ---
 def linkify(text):
     if not text: return ""
+    # 1. Escape HTML first for security
     text = html.escape(str(text))
-    return re.sub(r'(https?://[^\s]+|www\.[^\s]+)', 
+    
+    # 2. Linkify URLs (http/https/www)
+    text = re.sub(r'(https?://[^\s]+|www\.[^\s]+)', 
                   lambda m: f'<a href="{"http://" if m.group(0).startswith("www") else ""}{m.group(0)}" target="_blank">{m.group(0)}</a>', 
                   text)
+    
+    # 3. Linkify @Mentions
+
+    # This finds @ followed by alphanumeric characters and turns it into a link
+    text = re.sub(r'@(\w+)', 
+                  r'<a href="/profile/\1" class="mention">@\1</a>', 
+                  text)
+    
+    return text
 
 templates.env.globals["linkify"] = linkify
 
@@ -144,38 +156,55 @@ async def logout():
 # -----------------------
 # PROFILE & BIO ROUTES
 # -----------------------
+
 @app.get("/profile/{username}", response_class=HTMLResponse)
 async def view_profile(request: Request, username: str):
     db = get_db()
-    user_data = db.execute("SELECT * FROM users WHERE username = ?", (username,)).fetchone()
+    # Use 'LIKE' to ensure 'Yyuan29' matches 'yyuan29'
+    user_data = db.execute("SELECT * FROM users WHERE username LIKE ?", (username,)).fetchone()
+    
     if not user_data:
         db.close()
-        return HTMLResponse("User not found", 404)
+        return HTMLResponse(f"User '{username}' not found", 404)
     
-    msgs = db.execute('SELECT * FROM messages WHERE user_id = ? ORDER BY timestamp DESC LIMIT 10', (user_data['id'],)).fetchall()
+    # Get all messages for this specific user
+    msgs = db.execute("SELECT * FROM messages WHERE user_id = ? ORDER BY timestamp DESC", (user_data['id'],)).fetchall()
     db.close()
     
+    # Check if the person viewing the profile is the owner of the profile
+    logged_in_user = request.cookies.get("username")
+    is_own_profile = False
+    if logged_in_user and logged_in_user.lower() == user_data['username'].lower():
+        is_own_profile = True
+    
     return templates.TemplateResponse(
+        request=request,
         name="profile.html", 
         context={
             "request": request, 
             "profile_user": user_data, 
             "messages": msgs,
-            "is_own_profile": request.cookies.get("username") == username, 
-            "user": request.cookies.get("username")
+            "is_own_profile": is_own_profile,
+            "user": logged_in_user
         }
     )
 
 @app.post("/update_profile")
 async def update_profile(request: Request, bio: str = Form(...)):
+    # 1. Figure out who is logged in via the cookie
     username = request.cookies.get("username")
-    if not username: return RedirectResponse("/login", 303)
+    
+    if not username or username == "None":
+        return RedirectResponse("/login", 303)
+    
+    # 2. Update the database
     db = get_db()
     db.execute("UPDATE users SET bio = ? WHERE username = ?", (bio, username))
     db.commit()
     db.close()
+    
+    # 3. Send them back to their profile to see the new bio
     return RedirectResponse(f"/profile/{username}", 303)
-
 # -----------------------
 # MESSAGE ROUTES
 # -----------------------
