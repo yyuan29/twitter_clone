@@ -440,6 +440,30 @@ async def set_language(lang: str):
         response.set_cookie(key="language", value=lang, max_age=2592000)
     return response
 
+@app.get("/api/messages")
+async def get_messages_json():
+    db = get_db()
+    # Fetch all messages from the database
+    rows = db.execute("""
+        SELECT m.id, m.content, m.timestamp, m.edited_at, u.username 
+        FROM messages m 
+        JOIN users u ON m.user_id = u.id 
+        ORDER BY m.timestamp DESC
+    """).fetchall()
+    db.close()
+
+    # Convert the SQLite rows into a list of dictionaries
+    messages_list = []
+    for row in rows:
+        messages_list.append({
+            "id": row["id"],
+            "username": row["username"],
+            "content": row["content"],
+            "timestamp": row["timestamp"],
+            "edited_at": row["edited_at"]
+        })
+
+    return {"messages": messages_list}
 
 if __name__ == "__main__":
     import uvicorn
