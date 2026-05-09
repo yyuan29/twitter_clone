@@ -9,15 +9,16 @@
             --birdie-pink: #fde2e4;
             --birdie-dark-pink: #ff4d6d;
             --birdie-border: #fad2d6;
+            --nav-text: #444;
         }
 
         body {
             background-color: #fcfcfc;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
             margin: 0; padding: 0; color: #333;
         }
 
-        /* HEADER & NAVIGATION */
+        /* PINK HEADER */
         .birdie-header {
             background-color: var(--birdie-pink);
             padding: 15px 0;
@@ -25,33 +26,15 @@
             text-align: center;
         }
 
-        .lang-picker { margin-bottom: 10px; font-size: 0.85em; }
-        .lang-picker a { text-decoration: none; color: #888; margin: 0 5px; font-weight: bold; }
-        .lang-picker a:hover { color: var(--birdie-dark-pink); }
-
-        .logo-container {
-            display: flex; flex-direction: column; align-items: center; justify-content: center; margin-bottom: 5px;
-        }
-
-        .birdie-logo { height: 40px; width: auto; margin-bottom: 5px; }
-
-        .title-nav h1 { font-size: 28px; margin: 0; font-weight: 800; color: #000; letter-spacing: -0.5px; }
-        .title-nav nav { margin: 12px 0; font-weight: 600; }
-        .title-nav nav a { text-decoration: none; color: #444; margin: 0 12px; transition: 0.2s; }
+        .logo-container { display: flex; flex-direction: column; align-items: center; }
+        .birdie-logo { height: 40px; margin-bottom: 5px; }
+        .title-nav h1 { font-size: 28px; margin: 0; font-weight: 800; color: #000; }
+        
+        .title-nav nav { margin: 15px 0; font-weight: 600; }
+        .title-nav nav a { text-decoration: none; color: var(--nav-text); margin: 0 12px; transition: 0.2s; }
         .title-nav nav a:hover { color: var(--birdie-dark-pink); }
 
-        /* SEARCH BAR */
-        .search-container { margin-top: 10px; }
-        .search-input {
-            padding: 8px 18px; border-radius: 25px; border: 1px solid var(--birdie-border);
-            width: 45%; max-width: 350px; outline: none;
-        }
-        .search-btn {
-            padding: 8px 18px; border-radius: 25px; border: none; background: var(--birdie-dark-pink);
-            color: white; font-weight: bold; cursor: pointer; margin-left: -45px;
-        }
-
-        /* MAIN CONTENT */
+        /* MAIN CONTAINER */
         .container { max-width: 700px; margin: 30px auto; padding: 0 20px; }
         
         .feed-label {
@@ -60,18 +43,19 @@
             border-left: 5px solid var(--birdie-dark-pink);
         }
 
-        /* THREADING STYLES */
+        /* CHIRP CARDS */
         .chirp-card {
             background: white; border: 1px solid #eee; border-radius: 20px;
             padding: 15px; margin-bottom: 10px; display: flex; gap: 15px;
             box-shadow: 0 2px 10px rgba(0,0,0,0.02); align-items: flex-start;
         }
 
+        /* STAIRCASE THREADING */
         .reply-thread {
-            margin-left: 30px;
+            margin-left: 35px;
             border-left: 2px solid var(--birdie-border);
             padding-left: 15px;
-            margin-bottom: 20px;
+            margin-bottom: 15px;
         }
 
         .avatar-circle {
@@ -81,11 +65,24 @@
 
         .username { color: var(--birdie-dark-pink); font-weight: bold; text-decoration: none; }
         
-        .btn-action { color: #aaa; text-decoration: none; font-size: 0.8em; margin-right: 12px; cursor: pointer; border: none; background: none; font-family: inherit; }
+        .btn-action { 
+            color: #aaa; text-decoration: none; font-size: 0.85em; 
+            margin-right: 12px; cursor: pointer; border: none; 
+            background: none; font-family: inherit; font-weight: 600; 
+        }
         .btn-action:hover { color: var(--birdie-dark-pink); }
 
         .reply-form { display: none; margin-top: 10px; background: #f9f9f9; padding: 10px; border-radius: 10px; }
-        .reply-input { width: 80%; padding: 8px; border-radius: 10px; border: 1px solid #ddd; }
+        .reply-input { width: 80%; padding: 8px; border-radius: 10px; border: 1px solid #ddd; outline: none; }
+
+        /* MESSAGE CONTENT */
+        .message-content { margin-top: 5px; line-height: 1.4; }
+        .edited-tag {
+            color: var(--birdie-dark-pink);
+            font-size: 0.7em;
+            font-style: italic;
+            margin-left: 8px;
+        }
     </style>
 </head>
 <body>
@@ -93,42 +90,28 @@
     {% set t = get_t(request) %}
 
     <header class="birdie-header">
-        <div class="lang-picker">
-            <a href="/set_lang/en">EN</a> | <a href="/set_lang/fr">FR</a> | <a href="/set_lang/zh">ZH</a>
-        </div>
-
         <div class="logo-container">
             <a href="/">
-                <img src="/static/logo.png" alt="Logo" class="birdie-logo">
+                <img src="/static/logo.png" alt="Birdie Logo" class="birdie-logo">
             </a>
-            <h1>BirdieMessages</h1>
-        </div>
-        
-        <nav>
-            <a href="/">{{ t.home }}</a>
-            {% if user and user != "None" %}
-                <a href="/profile/{{ user }}">{{ t.profile }}</a>
-                <a href="/create_message">{{ t.post }}</a>
-                <a href="/reset_password">{{ t.settings }}</a>
-                <a href="/logout">{{ t.logout }}</a>
-            {% else %}
-                <a href="/login">{{ t.login }}</a>
-                <a href="/register">{{ t.register }}</a>
-            {% endif %}
-        </nav>
-
-        <div class="search-container">
-            <form action="/search" method="get">
-                <input type="text" name="q" class="search-input" placeholder="{{ t.search_placeholder }}" value="{{ search_query or '' }}">
-                <button type="submit" class="search-btn">🔍</button>
-            </form>
+            <div class="title-nav">
+                <h1>BirdieMessages</h1>
+                <nav>
+                    <a href="/">{{ t.home }}</a>
+                    {% if user and user != "None" %}
+                        <a href="/create_message" style="color: var(--birdie-dark-pink); font-weight: 800;">+ {{ t.post }}</a>
+                        <a href="/profile/{{ user }}">{{ t.profile }}</a>
+                        <a href="/logout">{{ t.logout }}</a>
+                    {% else %}
+                        <a href="/login">{{ t.login }}</a>
+                    {% endif %}
+                </nav>
+            </div>
         </div>
     </header>
 
     <div class="container">
-        <div class="feed-label">
-            {% if search_query %} {{ t.search_placeholder }} {% else %} {{ t.feed_label }} {% endif %}
-        </div>
+        <div class="feed-label">{{ t.feed_label }}</div>
 
         <main>
             {% macro display_message(msg) %}
@@ -137,24 +120,31 @@
                     <div class="card-body" style="flex: 1;">
                         <div class="card-header">
                             <a href="/profile/{{ msg.username }}" class="username">@{{ msg.username }}</a>
-                            <span style="color:#ccc; font-size: 0.7em;"> • {{ msg.timestamp }}</span>
+                            <span style="color:#ccc; font-size: 0.75em;"> • {{ msg.timestamp }}</span>
+                            
+                            {% if msg.edited_at %}
+                                <span class="edited-tag" title="Last edited: {{ msg.edited_at }}">
+                                    (Edited: {{ msg.edited_at }})
+                                </span>
+                            {% endif %}
                         </div>
                         
-                        <div style="margin: 8px 0; line-height: 1.4;">
+                        <div class="message-content">
                             {{ linkify(msg.content) | safe }}
                         </div>
 
-                        <div class="card-footer">
+                        <div class="card-footer" style="margin-top: 10px;">
                             <button class="btn-action" onclick="toggleReply('{{msg.id}}')">💬 {{ t.reply }}</button>
                             
                             {% if user == msg.username %}
-                                <a href="/delete_message/{{ msg.id }}" class="btn-action" onclick="return confirm('Delete?')">{{ t.delete }}</a>
+                                <a href="/edit_message/{{ msg.id }}" class="btn-action">✏️ {{ t.edit }}</a>
+                                <a href="/delete_message/{{ msg.id }}" class="btn-action" onclick="return confirm('Delete?')">🗑️ {{ t.delete }}</a>
                             {% endif %}
                         </div>
 
                         <form id="reply-form-{{msg.id}}" class="reply-form" action="/reply/{{msg.id}}" method="post">
                             <input type="text" name="content" class="reply-input" placeholder="{{ t.reply }}..." required>
-                            <button type="submit" style="background: var(--birdie-dark-pink); color: white; border: none; border-radius: 10px; padding: 5px 10px; cursor: pointer;">{{ t.post }}</button>
+                            <button type="submit" style="background: var(--birdie-dark-pink); color: white; border: none; border-radius: 10px; padding: 6px 12px; cursor: pointer; font-weight: bold;">Post</button>
                         </form>
                     </div>
                 </div>
@@ -170,10 +160,6 @@
 
             {% for msg in messages %}
                 {{ display_message(msg) }}
-            {% else %}
-                <div style="text-align:center; padding: 50px; color: #ccc;">
-                    <h3>No chirps found!</h3>
-                </div>
             {% endfor %}
         </main>
     </div>
@@ -182,6 +168,7 @@
         function toggleReply(id) {
             const form = document.getElementById('reply-form-' + id);
             form.style.display = (form.style.display === 'block') ? 'none' : 'block';
+            if (form.style.display === 'block') form.querySelector('input').focus();
         }
     </script>
 
