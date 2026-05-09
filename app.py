@@ -9,6 +9,7 @@ import os
 import re
 import html
 from datetime import datetime
+import markdown
 
 LANGUAGES = {
     "en": {
@@ -39,15 +40,34 @@ DB_PATH = os.path.join(os.path.dirname(__file__), "database.db")
 
 # --- UTILS ---
 def linkify(text):
-    if not text: return ""
-    text = html.escape(str(text))
-    text = re.sub(r'(https?://[^\s]+|www\.[^\s]+)', 
-                  lambda m: f'<a href="{"http://" if m.group(0).startswith("www") else ""}{m.group(0)}" target="_blank">{m.group(0)}</a>', 
-                  text)
-    text = re.sub(r'@(\w+)', 
-                  r'<a href="/profile/\1" class="mention">@\1</a>', 
-                  text)
-    return text
+    if not text: 
+        return ""
+
+    # 1. ESCAPE the raw text first for security
+    # This prevents users from typing <script> tags to hack your site
+    clean_text = html.escape(str(text))
+
+    # 2. APPLY MARKDOWN
+    # This converts **bold** to <strong> and [links](url) to <a>
+    # We use 'nl2br' so that when you press Enter, it actually starts a new line
+    html_content = markdown.markdown(clean_text, extensions=['extra', 'nl2br'])
+
+    # 3. HW1 REGEX: Raw URLs (The 3-point task)
+    # This finds www. or http:// that Markdown might have missed
+    html_content = re.sub(
+        r'(?<!href=")(https?://[^\s]+|www\.[^\s]+)', 
+        lambda m: f'<a href="{"http://" if m.group(0).startswith("www") else ""}{m.group(0)}" target="_blank">{m.group(0)}</a>', 
+        html_content
+    )
+
+    # 4. HW1 REGEX: @Mentions
+    # This turns @username into a link to their Birdie profile
+    html_content = re.sub(
+        r'@(\w+)', 
+        r'<a href="/profile/\1" class="mention" style="color: var(--birdie-dark-pink); font-weight: bold; text-decoration: none;">@\1</a>', 
+        html_content
+    )
+    return html_content
 
 templates.env.globals["linkify"] = linkify
 
