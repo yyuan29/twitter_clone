@@ -83,6 +83,16 @@
             font-style: italic;
             margin-left: 8px;
         }
+
+        /* PAGINATION BUTTONS */
+        .pagination { display: flex; justify-content: center; align-items: center; gap: 20px; margin: 40px 0; }
+        .page-btn { 
+            text-decoration: none; padding: 10px 25px; border-radius: 25px; font-weight: bold; 
+            transition: 0.3s;
+        }
+        .btn-next { background: var(--birdie-dark-pink); color: white; }
+        .btn-prev { background: var(--birdie-pink); color: var(--birdie-dark-pink); border: 2px solid var(--birdie-border); }
+        .btn-disabled { color: #ccc; cursor: not-allowed; }
     </style>
 </head>
 <body>
@@ -161,6 +171,23 @@
             {% for msg in messages %}
                 {{ display_message(msg) }}
             {% endfor %}
+
+            <div class="pagination">
+                {% if has_prev %}
+                    <a href="/?page={{ page - 1 }}" class="page-btn btn-prev">← Previous</a>
+                {% else %}
+                    <span class="btn-disabled">← Previous</span>
+                {% endif %}
+
+                <span style="font-weight: bold; color: #666;">Page {{ page }}</span>
+
+                {% if has_next %}
+                    <a href="/?page={{ page + 1 }}" class="page-btn btn-next">Next →</a>
+                {% else %}
+                    <span class="btn-disabled">Next →</span>
+                {% endif %}
+            </div>
+
         </main>
     </div>
 

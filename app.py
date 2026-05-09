@@ -103,24 +103,55 @@ def get_db():
 # -----------------------
 # HOME FEED (WITH PAGINATION)
 # -----------------------
+def get_replies(parent_id):
+    db = get_db()
+    # Find messages that are children of the parent_id
+    reply_rows = db.execute("""
+        SELECT m.*, u.username 
+        FROM messages m 
+        JOIN users u ON m.user_id = u.id 
+        WHERE m.parent_id = ?
+        ORDER BY m.timestamp ASC
+    """, (parent_id,)).fetchall()
+    db.close()
+    
+    # Convert to a list of dicts
+    replies = [dict(r) for r in reply_rows]
+    
+    # Optional: If you want replies-to-replies (deep nesting), 
+    # you would call the function recursively here:
+    for reply in replies:
+        reply["replies"] = get_replies(reply["id"])
+        
+    return replies
+
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request, page: int = 1):
-    if page < 1:
-        page = 1
-
+    if page < 1: page = 1
     limit = 50
     offset = (page - 1) * limit
 
     db = get_db()
-    total_messages = db.execute("SELECT COUNT(*) FROM messages").fetchone()[0]
+    
+    # We count only top-level messages (where parent_id is NULL) for the main feed
+    total_messages = db.execute("SELECT COUNT(*) FROM messages WHERE parent_id IS NULL").fetchone()[0]
 
-    query = f'''
-        SELECT messages.*, users.username, users.age FROM messages
-        LEFT JOIN users ON messages.user_id = users.id
-        ORDER BY messages.timestamp DESC
-        LIMIT {limit} OFFSET {offset}
-    '''
-    msgs = db.execute(query).fetchall()
+    # Clean query using ? placeholders to prevent SQL injection
+    query = """
+        SELECT m.*, u.username FROM messages m
+        LEFT JOIN users u ON m.user_id = u.id
+        WHERE m.parent_id IS NULL
+        ORDER BY m.timestamp DESC
+        LIMIT ? OFFSET ?
+    """
+    rows = db.execute(query, (limit, offset)).fetchall()
+    
+    # Convert to dictionary and fetch replies for staircase threading
+    messages = [dict(row) for row in rows]
+    for msg in messages:
+        # Assuming you have a get_replies function defined
+        msg["replies"] = get_replies(msg["id"]) 
+    
     db.close()
 
     has_next = (offset + limit) < total_messages
@@ -128,16 +159,16 @@ async def index(request: Request, page: int = 1):
 
     return templates.TemplateResponse(
         request=request,
-        name="index.html",
+        name="index.html", 
         context={
-            "request": request,
-            "messages": msgs,
-            "user": request.cookies.get("username"),
-            "page": page,
-            "has_next": has_next,
-            "has_prev": has_prev
-        }
-    )
+        "request": request,
+        "messages": messages,
+        "user": request.cookies.get("username"),
+        "page": page,
+        "has_next": has_next,
+        "has_prev": has_prev,
+        "t": get_translations(request)  # CRITICAL: Adds translations back
+    })
 
 # -----------------------
 # AUTH ROUTES
