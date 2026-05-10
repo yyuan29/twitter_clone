@@ -72,11 +72,12 @@
         }
         .btn-action:hover { color: var(--birdie-dark-pink); }
 
-        .reply-form { display: none; margin-top: 10px; background: #f9f9f9; padding: 10px; border-radius: 10px; }
-        .reply-input { width: 80%; padding: 8px; border-radius: 10px; border: 1px solid #ddd; outline: none; }
-
-        /* MESSAGE CONTENT */
-        .message-content { margin-top: 5px; line-height: 1.4; }
+        /* MESSAGE CONTENT & MARKDOWN STYLING */
+        .message-content { margin-top: 5px; line-height: 1.4; overflow-wrap: break-word; }
+        .message-content ul { padding-left: 20px; }
+        .message-content a { color: #007bff; text-decoration: none; }
+        .message-content a:hover { text-decoration: underline; }
+        
         .edited-tag {
             color: var(--birdie-dark-pink);
             font-size: 0.7em;
@@ -84,7 +85,7 @@
             margin-left: 8px;
         }
 
-        /* PAGINATION BUTTONS */
+        /* PAGINATION */
         .pagination { display: flex; justify-content: center; align-items: center; gap: 20px; margin: 40px 0; }
         .page-btn { 
             text-decoration: none; padding: 10px 25px; border-radius: 25px; font-weight: bold; 
@@ -93,6 +94,9 @@
         .btn-next { background: var(--birdie-dark-pink); color: white; }
         .btn-prev { background: var(--birdie-pink); color: var(--birdie-dark-pink); border: 2px solid var(--birdie-border); }
         .btn-disabled { color: #ccc; cursor: not-allowed; }
+
+        .reply-form { display: none; margin-top: 10px; background: #f9f9f9; padding: 10px; border-radius: 10px; }
+        .reply-input { width: 80%; padding: 8px; border-radius: 10px; border: 1px solid #ddd; outline: none; }
     </style>
 </head>
 <body>
@@ -114,6 +118,7 @@
                         <a href="/logout">{{ t.logout }}</a>
                     {% else %}
                         <a href="/login">{{ t.login }}</a>
+                        <a href="/register" style="color: var(--birdie-dark-pink);">{{ t.register }}</a>
                     {% endif %}
                 </nav>
             </div>
