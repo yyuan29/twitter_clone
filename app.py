@@ -226,18 +226,24 @@ async def home(request: Request, page: int = 1):
 
     db = get_db()
     rows = db.execute("""
-        SELECT m.*, u.username,
-               CASE 
-                   WHEN m.parent_id IS NULL THEN m.id 
-                   ELSE m.parent_id 
-               END as thread_id,
-               CASE 
-                   WHEN m.parent_id IS NULL THEN 0 
-                   ELSE 1 
-               END as is_reply
+        WITH RECURSIVE message_tree AS (
+            -- Base case: Top level messages
+            SELECT id, id as root_id, timestamp, 0 as depth
+            FROM messages
+            WHERE parent_id IS NULL
+            
+            UNION ALL
+            
+            -- Recursive step: Find children and pass down the root_id
+            SELECT m.id, mt.root_id, m.timestamp, mt.depth + 1
+            FROM messages m
+            JOIN message_tree mt ON m.parent_id = mt.id
+        )
+        SELECT m.*, u.username, mt.depth, mt.root_id
         FROM messages m
+        JOIN message_tree mt ON m.id = mt.id
         LEFT JOIN users u ON m.user_id = u.id
-        ORDER BY thread_id DESC, is_reply ASC, m.timestamp ASC
+        ORDER BY mt.root_id DESC, mt.timestamp ASC
         LIMIT ? OFFSET ?
     """, (limit, offset)).fetchall()
 
