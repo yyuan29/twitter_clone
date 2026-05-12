@@ -154,7 +154,6 @@ def get_db():
     conn.commit()
     return conn
 
-
 def db_execute(query, params=()):
     """
     Safe wrapper so you NEVER accidentally concat SQL strings.
@@ -213,7 +212,6 @@ templates.env.globals["linkify"] = linkify
 # -----------------------
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request, page: int = 1):
-
     if page < 1:
         page = 1
 
@@ -222,9 +220,9 @@ async def home(request: Request, page: int = 1):
 
     db = get_db()
 
-    total = db.execute(
-        "SELECT COUNT(*) FROM messages WHERE parent_id IS NULL"
-    ).fetchone()[0]
+    # --- ADD THIS LINE TO FIX THE 'TOTAL' SQUIGGLE ---
+    total_row = db.execute("SELECT COUNT(*) FROM messages WHERE parent_id IS NULL").fetchone()
+    total = total_row[0] if total_row else 0
 
     rows = db.execute("""
         SELECT m.*, u.username
@@ -234,14 +232,13 @@ async def home(request: Request, page: int = 1):
         ORDER BY m.timestamp DESC
         LIMIT ? OFFSET ?
     """, (limit, offset)).fetchall()
-
+    
     db.close()
 
     return templates.TemplateResponse(
         request=request,
         name="index.html",
-        context=
-        {
+        context={
             "request": request,
             "messages": rows,
             "page": page,
