@@ -220,28 +220,31 @@ templates.env.globals.update(linkify=linkify)
 # -----------------------
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request, page: int = 1):
-    if page < 1:
-        page = 1
-
+    if page < 1: page = 1
     limit = 50
     offset = (page - 1) * limit
 
     db = get_db()
-    
-    # 1. Count ALL messages (including replies)
-    total_row = db.execute("SELECT COUNT(*) FROM messages").fetchone()
-    total = total_row[0] if total_row else 0
-
     rows = db.execute("""
-        SELECT m.*, u.username
+        SELECT m.*, u.username,
+               CASE 
+                   WHEN m.parent_id IS NULL THEN m.id 
+                   ELSE m.parent_id 
+               END as thread_id,
+               CASE 
+                   WHEN m.parent_id IS NULL THEN 0 
+                   ELSE 1 
+               END as is_reply
         FROM messages m
         LEFT JOIN users u ON m.user_id = u.id
-        ORDER BY m.timestamp DESC
+        ORDER BY thread_id DESC, is_reply ASC, m.timestamp ASC
         LIMIT ? OFFSET ?
     """, (limit, offset)).fetchall()
-    
-    db.close()
 
+    total_row = db.execute("SELECT COUNT(*) FROM messages").fetchone()
+    total = total_row[0] if total_row else 0
+    db.close()
+    
     return templates.TemplateResponse(
         request=request,
         name="index.html",
