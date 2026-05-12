@@ -4,7 +4,6 @@ from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from passlib.hash import pbkdf2_sha256
 from itsdangerous import URLSafeTimedSerializer
-from fastapi import Form
 
 import sqlite3
 import os
