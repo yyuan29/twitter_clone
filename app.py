@@ -35,6 +35,21 @@ def get_current_user_id(request: Request):
         return int(user_id)
     except:
         return None
+    
+def ensure_bio_column():
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+
+    cur.execute("PRAGMA table_info(users)")
+    columns = [row[1] for row in cur.fetchall()]
+
+    if "bio" not in columns:
+        cur.execute("ALTER TABLE users ADD COLUMN bio TEXT DEFAULT ''")
+
+    conn.commit()
+    conn.close()
+
+ensure_bio_column()
 
 
 # -----------------------
@@ -429,21 +444,19 @@ async def register(
 # -----------------------
 # Password Reset
 # -----------------------
-@app.get("/reset_password", response_class=HTMLResponse)
-async def reset_password_page(request: Request):
-    if not request.cookies.get("user_id"):
-        return RedirectResponse("/login", 303)
+@app.get("/change_password", response_class=HTMLResponse)
+async def change_password_page(request: Request):
+    return HTMLResponse("""
+    <form method="post">
+        <input type="password" name="old_password" placeholder="Old password" required><br>
+        <input type="password" name="new_password" placeholder="New password" required><br>
+        <input type="password" name="confirm_password" placeholder="Confirm password" required><br>
+        <button type="submit">Change Password</button>
+    </form>
+    """)
 
-    return templates.TemplateResponse(
-        request=request,
-        name="reset_password.html",
-        context={
-            "request": request,
-            "t": get_translations(request)
-        }
-    )
-@app.post("/reset_password")
-async def reset_password(
+@app.post("/change_password")
+async def change_password(
     request: Request,
     old_password: str = Form(...),
     new_password: str = Form(...),
@@ -454,7 +467,7 @@ async def reset_password(
         return RedirectResponse("/login", 303)
 
     if new_password != confirm_password:
-        return HTMLResponse("New passwords do not match", status_code=400)
+        return HTMLResponse("Passwords do not match", 400)
 
     db = get_db()
 
@@ -463,16 +476,10 @@ async def reset_password(
         (user_id,)
     ).fetchone()
 
-    if not user:
+    if not user or not pbkdf2_sha256.verify(old_password, user["password"]):
         db.close()
-        return HTMLResponse("User not found", status_code=404)
+        return HTMLResponse("Incorrect old password", 400)
 
-    # verify old password
-    if not pbkdf2_sha256.verify(old_password, user["password"]):
-        db.close()
-        return HTMLResponse("Old password incorrect", status_code=403)
-
-    # update password
     new_hashed = pbkdf2_sha256.hash(new_password)
 
     db.execute(
@@ -483,7 +490,7 @@ async def reset_password(
     db.commit()
     db.close()
 
-    return RedirectResponse("/profile/" + user["username"], 303)
+    return RedirectResponse("/", 303)
 
 # -----------------------
 # Profiles
@@ -542,8 +549,11 @@ async def view_profile(request: Request, username: str):
 
 @app.post("/update_profile")
 async def update_profile(request: Request, bio: str = Form(...)):
+
     user_id = get_current_user_id(request)
-    if not user_id:
+    username = request.cookies.get("username")
+
+    if not user_id or not username:
         return RedirectResponse("/login", 303)
 
     db = get_db()
@@ -556,7 +566,7 @@ async def update_profile(request: Request, bio: str = Form(...)):
     db.commit()
     db.close()
 
-    return RedirectResponse(f"/profile/{request.cookies.get('username')}", 303)
+    return RedirectResponse(f"/profile/{username}", 303)
 # -----------------------
 # Creating Messages
 # -----------------------
@@ -843,28 +853,39 @@ async def logout():
 # -----------------------
 # Delete Account
 # -----------------------
+@app.get("/delete_account", response_class=HTMLResponse)
+async def delete_account_confirm(request: Request):
+    user_id = get_current_user_id(request)
+    if not user_id:
+        return RedirectResponse("/login", 303)
+
+    return HTMLResponse("""
+    <html>
+        <body style="font-family: Arial; text-align:center; margin-top:100px;">
+            <h2 style="color:red;">⚠️ Delete Account</h2>
+            <p>This action is permanent. All your messages will be deleted.</p>
+
+            <form method="post" action="/delete_account">
+                <button style="background:red; color:white; padding:10px 20px; border:none; border-radius:8px;">
+                    Yes, delete my account
+                </button>
+            </form>
+
+            <br>
+            <a href="/" style="color:gray;">Cancel</a>
+        </body>
+    </html>
+    """)
+
 @app.post("/delete_account")
-async def delete_account(request: Request, password: str = Form(...)):
+async def delete_account(request: Request):
     user_id = get_current_user_id(request)
     if not user_id:
         return RedirectResponse("/login", 303)
 
     db = get_db()
 
-    # verify password first (IMPORTANT for grading safety)
-    user = db.execute(
-        "SELECT * FROM users WHERE id = ?",
-        (user_id,)
-    ).fetchone()
-
-    if not user or not pbkdf2_sha256.verify(password, user["password"]):
-        db.close()
-        return HTMLResponse("Incorrect password", status_code=401)
-
-    # delete user's messages first (foreign key safety)
     db.execute("DELETE FROM messages WHERE user_id = ?", (user_id,))
-
-    # delete user
     db.execute("DELETE FROM users WHERE id = ?", (user_id,))
 
     db.commit()

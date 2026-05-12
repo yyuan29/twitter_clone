@@ -2,47 +2,48 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>BirdieMessages</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BirdieMessages</title>
 
     <style>
         body {
             margin: 0;
-            font-family: Arial, sans-serif;
-            background: #fff0f3;
-        }
-
-        header {
-            background: #ffe5ec;
-            padding: 20px;
-            border-bottom: 3px solid #ffc2d1;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        nav a {
-            margin-right: 10px;
-            text-decoration: none;
-            color: black;
-            font-weight: bold;
-        }
-
-        nav a:hover {
-            background: #ffc2d1;
-            padding: 2px 5px;
-            border-radius: 5px;
-        }
-
-        .lang a {
-            margin-left: 8px;
-            text-decoration: none;
-            font-weight: bold;
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background: #fcfcfc;
             color: #333;
         }
 
-        .container {
+        header {
+            background: #fde2e4;
             padding: 20px;
+            text-align: center;
+            border-bottom: 2px solid #fad2d6;
+        }
+
+        .logo {
+            width: 60px;
+        }
+
+        h1 {
+            margin: 5px 0;
+            font-weight: 800;
+        }
+
+        nav a {
+            margin: 0 10px;
+            text-decoration: none;
+            color: #444;
+            font-weight: 600;
+        }
+
+        nav a:hover {
+            color: #ff4d6d;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 30px auto;
+            padding: 0 20px;
         }
     </style>
 </head>
@@ -50,32 +51,23 @@
 <body>
 
 <header>
-    <div>
-        <h2 style="margin:0;">BirdieMessages</h2>
-    </div>
+    <img src="/static/logo.png" class="logo">
+    <h1>BirdieMessages</h1>
 
     <nav>
-        <!-- SAFE translation usage -->
-        <a href="/">{{ t.get('home', 'Home') }}</a>
-
         {% if user %}
-            <a href="/create_message">{{ t.get('post', 'Post') }}</a>
-            <a href="/logout">{{ t.get('logout', 'Logout') }}</a>
+            <a href="/">Home</a>
+            <a href="/create_message">Post</a>
+            <a href="/profile/{{ user }}">Profile</a>
+            <a href="/logout">Logout</a>
         {% else %}
-            <a href="/login">{{ t.get('login', 'Login') }}</a>
-            <a href="/register">{{ t.get('register', 'Register') }}</a>
+            <a href="/">Home</a>
+            <a href="/login">Login</a>
+            <a href="/register">Register</a>
         {% endif %}
     </nav>
-
-    <!-- LANGUAGE SWITCHER -->
-    <div class="lang">
-        <a href="/set_lang/en">EN</a>
-        <a href="/set_lang/fr">FR</a>
-        <a href="/set_lang/zh">中文</a>
-    </div>
 </header>
 
-<!-- PAGE CONTENT -->
 <div class="container">
     {% block content %}{% endblock %}
 </div>

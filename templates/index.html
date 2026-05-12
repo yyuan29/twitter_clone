@@ -122,12 +122,18 @@
         }
 
         .message-content { margin-top: 5px; line-height: 1.5; }
-        .timestamp { color: #888; font-size: 0.8em; }
+
+        .timestamp, .bio-text {
+            color: #888;
+            font-size: 0.8em;
+            font-family: inherit;
+        }
 
         .actions-bar {
             margin-top: 10px;
             display: flex;
             gap: 15px;
+            font-family: inherit;
         }
 
         .btn-action {
@@ -135,6 +141,7 @@
             font-size: 0.8em;
             color: #888;
             font-weight: 600;
+            font-family: inherit;
         }
 
         .btn-action:hover { color: var(--birdie-dark-pink); }
@@ -144,6 +151,29 @@
             justify-content: center;
             gap: 20px;
             margin: 40px 0;
+            font-family: inherit;
+        }
+
+        /* 🔥 NEW FOOTER TOOLS */
+        .bottom-tools {
+            max-width: 800px;
+            margin: 60px auto 40px auto;
+            padding: 0 20px;
+            font-family: inherit;
+            font-size: 0.8em;
+            color: #888;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .bottom-tools a {
+            color: #888;
+            text-decoration: none;
+        }
+
+        .bottom-tools a:hover {
+            color: var(--birdie-dark-pink);
         }
     </style>
 </head>
@@ -167,7 +197,6 @@
 
             <nav>
                 <a href="/">{{ t.home }}</a>
-
                 {% if user %}
                     <a href="/create_message">+ {{ t.post }}</a>
                     <a href="/profile/{{ user }}">{{ t.profile }}</a>
@@ -191,7 +220,7 @@
 <div class="container">
     {% for msg in messages %}
         <div class="chirp-card {% if msg.parent_id %}is-reply{% endif %}">
-
+            
             <img class="avatar-circle {% if msg.parent_id %}avatar-reply{% endif %}"
                  src="https://api.dicebear.com/7.x/fun-emoji/svg?seed={{ msg.username }}">
 
@@ -225,50 +254,11 @@
     </div>
 </div>
 
-<!-- =========================
-     ACCOUNT SETTINGS (BOTTOM)
-     ========================= -->
-<div style="max-width:800px;margin:60px auto 40px auto;padding:20px;border-top:2px solid #fad2d6;text-align:center;">
-
-    <h3 style="color:#ff4d6d;margin-bottom:20px;">Account Settings</h3>
-
-    <!-- API -->
-    <div style="margin-bottom:20px;">
-        <a href="/api/messages" target="_blank"
-           style="color:#444;font-weight:600;text-decoration:none;">
-            🔗 JSON API (Messages)
-        </a>
-    </div>
-
-    <!-- CHANGE PASSWORD -->
-    <form action="/change_password" method="post"
-          style="display:flex;flex-direction:column;align-items:center;gap:10px;margin-bottom:20px;">
-
-        <input type="password" name="old_password" placeholder="Old password"
-               style="padding:10px;width:250px;border-radius:10px;border:1px solid #ddd;">
-
-        <input type="password" name="new_password" placeholder="New password"
-               style="padding:10px;width:250px;border-radius:10px;border:1px solid #ddd;">
-
-        <input type="password" name="confirm_password" placeholder="Confirm password"
-               style="padding:10px;width:250px;border-radius:10px;border:1px solid #ddd;">
-
-        <button type="submit"
-                style="background:#ff4d6d;color:white;border:none;padding:10px 20px;border-radius:10px;cursor:pointer;">
-            Change Password
-        </button>
-    </form>
-
-    <!-- DELETE ACCOUNT -->
-    <form action="/delete_account" method="post"
-          onsubmit="return confirm('Delete account permanently?');">
-
-        <button type="submit"
-                style="background:#333;color:white;border:none;padding:10px 20px;border-radius:10px;cursor:pointer;">
-            Delete Account
-        </button>
-    </form>
-
+<!-- 🔥 RESTORED BOTTOM SYSTEM TOOLS -->
+<div class="bottom-tools">
+    <a href="/api/messages">API: /api/messages</a>
+    <a href="/delete_account">Delete Account</a>
+    <a href="/change_password">Change Password</a>
 </div>
 
 </body>
