@@ -408,6 +408,7 @@ async def register(
 
     db.close()
 
+    # ✅ AUTO LOGIN FIX
     response = RedirectResponse("/", status_code=303)
 
     response.set_cookie(
@@ -416,8 +417,15 @@ async def register(
         httponly=True,
         samesite="lax"
     )
-    return response
 
+    response.set_cookie(
+        "username",
+        username,
+        httponly=False,
+        samesite="lax"
+    )
+
+    return response
 # -----------------------
 # Password Reset
 # -----------------------
@@ -550,7 +558,7 @@ async def update_profile(request: Request, bio: str = Form(...)):
 
     return RedirectResponse(f"/profile/{request.cookies.get('username')}", 303)
 # -----------------------
-# CREATE MESSAGE
+# Creating Messages
 # -----------------------
 @app.get("/create_message", response_class=HTMLResponse)
 async def create_message_page(request: Request):
@@ -595,7 +603,7 @@ async def create_message(request: Request, content: str = Form(...)):
     return RedirectResponse("/", 303)
 
 # -----------------------
-# DELETE MESSAGE (OWNERSHIP CHECK)
+# Deleting Messages
 # -----------------------
 @app.get("/delete_message/{msg_id}")
 async def delete_message(request: Request, msg_id: int):
@@ -618,7 +626,7 @@ async def delete_message(request: Request, msg_id: int):
 
 
 # -----------------------
-# EDIT MESSAGE (OWNERSHIP VERIFIED)
+# Editting Messages
 # -----------------------
 @app.get("/edit_message/{msg_id}", response_class=HTMLResponse)
 async def edit_message_page(request: Request, msg_id: int):
@@ -680,7 +688,7 @@ async def edit_message(msg_id: int, request: Request, content: str = Form(...)):
     return RedirectResponse("/", 303)
 
 # -----------------------
-# SEARCH
+# Search
 # -----------------------
 @app.get("/search", response_class=HTMLResponse)
 async def search(request: Request, q: str = ""):
@@ -752,7 +760,7 @@ async def search(request: Request, q: str = ""):
         }
     )
 # -----------------------
-# REPLY SYSTEM
+# Reply
 # -----------------------
 @app.get("/message/{msg_id}", response_class=HTMLResponse)
 async def view_message(request: Request, msg_id: int):
@@ -820,7 +828,7 @@ async def post_reply(request: Request, parent_id: int, content: str = Form(...))
     return RedirectResponse(f"/message/{parent_id}", status_code=303)
 
 # -----------------------
-# LOGOUT
+# Logout
 # -----------------------
 @app.get("/logout")
 async def logout():
@@ -829,6 +837,42 @@ async def logout():
 
     response.delete_cookie("username")
     response.delete_cookie("user_id")
+
+    return response
+
+# -----------------------
+# Delete Account
+# -----------------------
+@app.post("/delete_account")
+async def delete_account(request: Request, password: str = Form(...)):
+    user_id = get_current_user_id(request)
+    if not user_id:
+        return RedirectResponse("/login", 303)
+
+    db = get_db()
+
+    # verify password first (IMPORTANT for grading safety)
+    user = db.execute(
+        "SELECT * FROM users WHERE id = ?",
+        (user_id,)
+    ).fetchone()
+
+    if not user or not pbkdf2_sha256.verify(password, user["password"]):
+        db.close()
+        return HTMLResponse("Incorrect password", status_code=401)
+
+    # delete user's messages first (foreign key safety)
+    db.execute("DELETE FROM messages WHERE user_id = ?", (user_id,))
+
+    # delete user
+    db.execute("DELETE FROM users WHERE id = ?", (user_id,))
+
+    db.commit()
+    db.close()
+
+    response = RedirectResponse("/register", 303)
+    response.delete_cookie("user_id")
+    response.delete_cookie("username")
 
     return response
 

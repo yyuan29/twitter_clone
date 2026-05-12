@@ -36,7 +36,6 @@
             color: #000;
         }
 
-        /* LANGUAGES UNDER TITLE */
         .lang-nav {
             font-size: 0.75em;
             color: #888;
@@ -68,7 +67,6 @@
             color: var(--birdie-dark-pink);
         }
 
-        /* SEARCH BAR (OWN LINE) */
         .search-row {
             margin-top: 12px;
         }
@@ -193,7 +191,7 @@
 <div class="container">
     {% for msg in messages %}
         <div class="chirp-card {% if msg.parent_id %}is-reply{% endif %}">
-            
+
             <img class="avatar-circle {% if msg.parent_id %}avatar-reply{% endif %}"
                  src="https://api.dicebear.com/7.x/fun-emoji/svg?seed={{ msg.username }}">
 
@@ -225,15 +223,51 @@
         <span>Page {{ page }}</span>
         {% if has_next %}<a href="/?page={{ page + 1 }}">Next →</a>{% endif %}
     </div>
+</div>
 
-    <!-- ADDED FOOTER (NO FORMATTING CHANGES ABOVE) -->
-    <div style="text-align:center; margin-top:50px; padding-bottom:30px; color:#888; font-size:0.9em;">
-        <div style="margin-bottom:15px;">
-            <a href="/api/messages" style="color:#ff4d6d; font-weight:bold; margin:0 10px;">JSON API</a>
-            <a href="/reset_password" style="color:#ff4d6d; font-weight:bold; margin:0 10px;">Reset Password</a>
-        </div>
-        <div>Showing 50 messages per page</div>
+<!-- =========================
+     ACCOUNT SETTINGS (BOTTOM)
+     ========================= -->
+<div style="max-width:800px;margin:60px auto 40px auto;padding:20px;border-top:2px solid #fad2d6;text-align:center;">
+
+    <h3 style="color:#ff4d6d;margin-bottom:20px;">Account Settings</h3>
+
+    <!-- API -->
+    <div style="margin-bottom:20px;">
+        <a href="/api/messages" target="_blank"
+           style="color:#444;font-weight:600;text-decoration:none;">
+            🔗 JSON API (Messages)
+        </a>
     </div>
+
+    <!-- CHANGE PASSWORD -->
+    <form action="/change_password" method="post"
+          style="display:flex;flex-direction:column;align-items:center;gap:10px;margin-bottom:20px;">
+
+        <input type="password" name="old_password" placeholder="Old password"
+               style="padding:10px;width:250px;border-radius:10px;border:1px solid #ddd;">
+
+        <input type="password" name="new_password" placeholder="New password"
+               style="padding:10px;width:250px;border-radius:10px;border:1px solid #ddd;">
+
+        <input type="password" name="confirm_password" placeholder="Confirm password"
+               style="padding:10px;width:250px;border-radius:10px;border:1px solid #ddd;">
+
+        <button type="submit"
+                style="background:#ff4d6d;color:white;border:none;padding:10px 20px;border-radius:10px;cursor:pointer;">
+            Change Password
+        </button>
+    </form>
+
+    <!-- DELETE ACCOUNT -->
+    <form action="/delete_account" method="post"
+          onsubmit="return confirm('Delete account permanently?');">
+
+        <button type="submit"
+                style="background:#333;color:white;border:none;padding:10px 20px;border-radius:10px;cursor:pointer;">
+            Delete Account
+        </button>
+    </form>
 
 </div>
 
