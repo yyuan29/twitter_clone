@@ -24,15 +24,13 @@ templates = Jinja2Templates(directory="templates")
 DB_PATH = os.path.join(os.path.dirname(__file__), "database.db")
 
 SECRET_KEY = "your-super-secret-key-12345" 
-signer = URLSafeTimedSerializer(SECRET_KEY)
 
 def get_current_user_id(request: Request):
-    signed_uid = request.cookies.get("user_id")
-    if not signed_uid:
+    user_id = request.cookies.get("user_id")
+    if not user_id:
         return None
     try:
-        # This will fail if the user tampered with the cookie
-        return int(signer.loads(signed_uid, max_age=86400)) # valid for 1 day
+        return int(user_id)
     except:
         return None
 
@@ -181,17 +179,8 @@ def db_execute(query, params=()):
 
 
 # -----------------------
-# SECURITY HELPERS
+# SECURITY HELPER
 # -----------------------
-
-# Get validated user ID from cookies (prevents tampering)
-def get_current_user_id(request: Request):
-    uid = request.cookies.get("user_id")
-    if not uid or not str(uid).isdigit():
-        return None
-    return int(uid)
-
-
 def linkify(text):
     if not text:
         return ""
@@ -225,16 +214,15 @@ async def home(request: Request, page: int = 1):
     offset = (page - 1) * limit
 
     db = get_db()
+    # The SQL is perfect, but ensure your database has 'username' in the users table
     rows = db.execute("""
         WITH RECURSIVE message_tree AS (
-            -- Base case: Top level messages
             SELECT id, id as root_id, timestamp, 0 as depth
             FROM messages
             WHERE parent_id IS NULL
             
             UNION ALL
             
-            -- Recursive step: Find children and pass down the root_id
             SELECT m.id, mt.root_id, m.timestamp, mt.depth + 1
             FROM messages m
             JOIN message_tree mt ON m.parent_id = mt.id
@@ -251,21 +239,22 @@ async def home(request: Request, page: int = 1):
     total = total_row[0] if total_row else 0
     db.close()
     
+    # Get the logged-in user from the cookie
+    logged_in_user = request.cookies.get("username")
+
     return templates.TemplateResponse(
         request=request,
         name="index.html",
-        context=
-        {
+        context={
             "request": request,
             "messages": rows,
             "page": page,
             "has_next": (offset + limit) < total,
             "has_prev": page > 1,
-            "user": request.cookies.get("username"),
+            "user": logged_in_user,
             "t": get_translations(request)
         }
     )
-
 
 # -----------------------
 # LOGIN (SECURE PASSWORD CHECK)
@@ -292,11 +281,26 @@ async def login(username: str = Form(...), password: str = Form(...)):
 
     db.close()
 
-    if not user or user["password"] != password:
+    if not user or not pbkdf2_sha256.verify(password, user["password"]):
         return HTMLResponse("Invalid login", status_code=401)
 
     response = RedirectResponse("/", status_code=303)
-    response.set_cookie("user_id", signer.dumps(str(user["id"])), httponly=True)
+
+    # FIXED: store real ID
+    response.set_cookie(
+        "user_id",
+        str(user["id"]),
+        httponly=True,
+        samesite="lax"
+    )
+
+    response.set_cookie(
+        "username",
+        user["username"],
+        httponly=False,
+        samesite="lax"
+    )
+
     return response
 
 # -----------------------
@@ -351,12 +355,11 @@ async def register(
     response = RedirectResponse("/", status_code=303)
 
     response.set_cookie(
-    "user_id", 
-    signer.dumps(str(user_id)), # Sign the ID
-    httponly=True, 
-    samesite="lax", 
-    secure=False # Set to True if using https
-)
+        "user_id",
+        str(user_id),
+        httponly=True,
+        samesite="lax"
+    )
     return response
 
 # -----------------------
@@ -413,6 +416,21 @@ async def view_profile(request: Request, username: str):
             "t": get_translations(request)
         }
     )
+
+@app.post("/update_profile")
+async def update_profile(request: Request, bio: str = Form(...)):
+    user_id = get_current_user_id(request)
+    if not user_id:
+        return RedirectResponse("/login", 303)
+
+    db = get_db()
+    username = db.execute(
+        "SELECT username FROM users WHERE id = ?",
+                (user_id,)
+    ).fetchone()["username"]
+    db.close()
+
+    return RedirectResponse(f"/profile/{username}", 303)
 # -----------------------
 # CREATE MESSAGE
 # -----------------------

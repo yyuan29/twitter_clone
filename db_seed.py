@@ -2,64 +2,107 @@ import sqlite3
 import random
 from datetime import datetime, timedelta
 
-DB_PATH = "database.db"
+DB_NAME = "database.db"
 
-# Sample data for random generation
-adjectives = ["Happy", "Sad", "Blue", "Fast", "Shiny", "Grumpy", "Epic", "Wild"]
-nouns = ["Bird", "Chirper", "Falcon", "Coder", "Pizza", "Eagle", "Skywalker", "Pilot"]
-contents = [
-    "Just had the best coffee! ☕",
-    "Coding my Twitter clone today. #Python",
-    "Has anyone seen the new movie?",
-    "Birdie is way better than the other apps.",
-    "The weather is amazing right now!",
-    "Just reached 100 followers! Thanks everyone.",
-    "Learning FastAPI is actually pretty fun.",
-    "Standardized test tomorrow... wish me luck.",
-    "Does anyone have a good cookie recipe?",
-    "Just posted a new photo on my profile!"
+USERNAMES = [
+    "alex", "sam", "jordan", "taylor", "morgan",
+    "casey", "drew", "riley", "jamie", "quinn"
 ]
 
-def populate_data():
-    conn = sqlite3.connect(DB_PATH)
+TEMPLATES = [
+    "Just finished studying for exams 😭",
+    "Why is CS homework always this hard",
+    "Coffee saved my life today",
+    "I need more sleep lol",
+    "FastAPI is actually kinda cool",
+    "SQLite is surprisingly powerful",
+    "debugging for 3 hours straight...",
+    "why does this bug only happen at 2am",
+    "midterm season is destroying me",
+    "this project is actually fun",
+    "I should be coding rn",
+    "send help",
+    "almost done with this assignment",
+    "professor said this was 'easy' 💀",
+    "why is everything breaking"
+]
+
+def random_time():
+    start = datetime(2025, 1, 1)
+    end = datetime(2026, 5, 11)
+    delta = end - start
+    return start + timedelta(seconds=random.randint(0, int(delta.total_seconds())))
+
+def main():
+    conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
 
-    print("Cleaning old data...")
+    # 🚀 SPEED BOOST (important even for 40k)
+    cursor.execute("PRAGMA journal_mode=WAL;")
+    cursor.execute("PRAGMA synchronous=OFF;")
+    cursor.execute("PRAGMA temp_store=MEMORY;")
+
+    # Clear old messages
     cursor.execute("DELETE FROM messages")
-    cursor.execute("DELETE FROM users")
-    cursor.execute("DELETE FROM sqlite_sequence WHERE name='messages' OR name='users'")
 
-    print("Generating 200 users...")
-    user_list = []
-    for i in range(1, 201):
-        username = f"{random.choice(adjectives)}{random.choice(nouns)}{i}"
-        password = "password123"
-        age = random.randint(13, 80)
-        bio = f"Hi, I am Birdie user #{i}! I love coding and birds."
-        user_list.append((username, password, age, bio))
-    
-    cursor.executemany("INSERT INTO users (username, password, age, bio) VALUES (?, ?, ?, ?)", user_list)
-    
-    # Get all user IDs
-    cursor.execute("SELECT id FROM users")
-    user_ids = [row[0] for row in cursor.fetchall()]
+    # -----------------------
+    # Ensure users exist
+    # -----------------------
+    cursor.execute("SELECT id, username FROM users")
+    user_map = {row[1]: row[0] for row in cursor.fetchall()}
 
-    print("Generating 40,000 messages (200 per user)...")
-    message_list = []
-    base_time = datetime.now()
+    for name in USERNAMES:
+        if name not in user_map:
+            cursor.execute(
+                "INSERT INTO users (username, password, age) VALUES (?, ?, ?)",
+                (name, "test", random.randint(18, 30))
+            )
+            user_map[name] = cursor.lastrowid
 
-    for u_id in user_ids:
-        for m_idx in range(200):
-            content = random.choice(contents)
-            # Create random timestamps over the last 30 days
-            timestamp = base_time - timedelta(minutes=random.randint(0, 43200))
-            message_list.append((u_id, content, timestamp.strftime("%Y-%m-%d %H:%M:%S")))
+    conn.commit()
+    print("Users ready.")
 
-    cursor.executemany("INSERT INTO messages (user_id, content, timestamp) VALUES (?, ?, ?)", message_list)
-    
+    # -----------------------
+    # Generate messages
+    # -----------------------
+    TOTAL = 40_000
+    BATCH_SIZE = 5_000
+
+    batch = []
+
+    print("Generating 40,000 messages...")
+
+    for i in range(TOTAL):
+        username = random.choice(USERNAMES)
+        user_id = user_map[username]
+
+        content = random.choice(TEMPLATES)
+        timestamp = random_time().strftime("%Y-%m-%d %H:%M:%S")
+
+        batch.append((user_id, content, timestamp))
+
+        if len(batch) >= BATCH_SIZE:
+            cursor.executemany("""
+                INSERT INTO messages (user_id, content, timestamp)
+                VALUES (?, ?, ?)
+            """, batch)
+
+            conn.commit()
+            batch = []
+
+            print(f"Inserted {i+1}/{TOTAL}")
+
+    # insert leftover rows
+    if batch:
+        cursor.executemany("""
+            INSERT INTO messages (user_id, content, timestamp)
+            VALUES (?, ?, ?)
+        """, batch)
+
     conn.commit()
     conn.close()
-    print("Successfully populated 200 users and 40,000 messages!")
+
+    print("DONE: 40,000 messages inserted.")
 
 if __name__ == "__main__":
-    populate_data()
+    main()
