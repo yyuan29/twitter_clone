@@ -28,15 +28,20 @@ templates = Jinja2Templates(directory="templates")
 
 DB_PATH = os.path.join(os.path.dirname(__file__), "database.db")
 
-SECRET_KEY = "your-super-secret-key-12345" 
+SECRET_KEY = "your-super-secret-key-12345"
+serializer = URLSafeTimedSerializer(SECRET_KEY)
 
 def get_current_user_id(request: Request):
-    user_id = request.cookies.get("user_id")
-    if not user_id:
+    signed_user = request.cookies.get("user_id")
+
+    if not signed_user:
         return None
+
     try:
+        user_id = serializer.loads(signed_user, max_age=604800)
         return int(user_id)
-    except:
+
+    except Exception:
         return None
 
 # -----------------------
@@ -279,20 +284,55 @@ def linkify(text):
     if not text:
         return ""
 
-    # 1. Convert Markdown to HTML first
-    # This turns "# Markdown Test" into "<h1>Markdown Test</h1>"
-    html_content = markdown.markdown(text, extensions=["extra", "nl2br"])
+    # Convert markdown safely
+    html_content = markdown.markdown(
+        text,
+        extensions=["extra", "nl2br"]
+    )
 
-    # 2. Bleach it to remove scripts, but ALLOW h1, p, etc.
-    allowed_tags = ['h1', 'h2', 'h3', 'p', 'br', 'strong', 'em', 'ul', 'ol', 'li', 'a']
-    allowed_attrs = {'a': ['href', 'title', 'target']}
-    
-    # This keeps the <h1> tags but kills any <script> tags
-    clean_html = bleach.clean(html_content, tags=allowed_tags, attributes=allowed_attrs)
+    allowed_tags = [
+        'h1', 'h2', 'h3',
+        'p', 'br',
+        'strong', 'em',
+        'ul', 'ol', 'li',
+        'a', 'code', 'pre'
+    ]
 
-    # 3. Add your mentions and link detection
-    clean_html = re.sub(r'(https?://[^\s<]+)', r'<a href="\1" target="_blank">\1</a>', clean_html)
-    clean_html = re.sub(r'@(\w+)', r'<a href="/profile/\1">@\1</a>', clean_html)
+    allowed_attrs = {
+        'a': ['href', 'title', 'target', 'rel']
+    }
+
+    # FIRST SANITIZE
+    clean_html = bleach.clean(
+        html_content,
+        tags=allowed_tags,
+        attributes=allowed_attrs,
+        protocols=['http', 'https'],
+        strip=True
+    )
+
+    # Convert URLs into links
+    clean_html = re.sub(
+        r'(https?://[^\s<]+)',
+        r'<a href="\1" target="_blank" rel="noopener noreferrer">\1</a>',
+        clean_html
+    )
+
+    # Convert mentions safely
+    clean_html = re.sub(
+        r'@(\w+)',
+        r'<a href="/profile/\1">@\1</a>',
+        clean_html
+    )
+
+    # SANITIZE AGAIN AFTER REGEX
+    clean_html = bleach.clean(
+        clean_html,
+        tags=allowed_tags,
+        attributes=allowed_attrs,
+        protocols=['http', 'https'],
+        strip=True
+    )
 
     return clean_html
 templates.env.globals.update(linkify=linkify)
@@ -380,12 +420,14 @@ async def login(username: str = Form(...), password: str = Form(...)):
 
     response = RedirectResponse("/", status_code=303)
 
-    # FIXED: store real ID
+    signed_user_id = serializer.dumps(user["id"])
+
     response.set_cookie(
         "user_id",
-        str(user["id"]),
+        signed_user_id,
         httponly=True,
-        samesite="lax"
+        samesite="lax",
+        secure=False
     )
 
     response.set_cookie(
@@ -424,6 +466,15 @@ async def register(
     age: int = Form(...)
 ):
 
+    username = username.strip()
+
+    # Username validation
+    if not re.match(r'^[A-Za-z0-9_]{3,20}$', username):
+        return HTMLResponse(
+            "Username must be 3-20 characters and only contain letters, numbers, and underscores.",
+            400
+        )
+
     if password != confirm_password:
         return HTMLResponse("Passwords do not match", 400)
 
@@ -433,9 +484,17 @@ async def register(
 
     try:
         cur = db.execute(
-            "INSERT INTO users (username, password, age) VALUES (?, ?, ?)",
+            """
+            INSERT INTO users (
+                username,
+                password,
+                age
+            )
+            VALUES (?, ?, ?)
+            """,
             (username, hashed, age)
         )
+
         db.commit()
 
         user_id = cur.lastrowid
@@ -446,14 +505,16 @@ async def register(
 
     db.close()
 
-    # ✅ AUTO LOGIN FIX
+    signed_user_id = serializer.dumps(user_id)
+
     response = RedirectResponse("/", status_code=303)
 
     response.set_cookie(
         "user_id",
-        str(user_id),
+        signed_user_id,
         httponly=True,
-        samesite="lax"
+        samesite="lax",
+        secure=False
     )
 
     response.set_cookie(
@@ -604,11 +665,23 @@ async def create_message_page(request: Request):
         }
     )
 @app.post("/create_message")
-async def create_message(request: Request, content: str = Form(...)):
+async def create_message(
+    request: Request,
+    content: str = Form(...)
+):
 
     user_id = get_current_user_id(request)
+
     if not user_id:
         return RedirectResponse("/login", 303)
+
+    content = content.strip()
+
+    if not content:
+        return HTMLResponse("Message cannot be empty", 400)
+
+    if len(content) > 5000:
+        return HTMLResponse("Message too long", 400)
 
     db = get_db()
 
@@ -619,7 +692,6 @@ async def create_message(request: Request, content: str = Form(...)):
 
     msg_id = cursor.lastrowid
 
-    # 🔥 THIS IS REQUIRED FOR FTS5
     db.execute(
         "INSERT INTO messages_search (content, message_id) VALUES (?, ?)",
         (content, msg_id)
@@ -629,7 +701,6 @@ async def create_message(request: Request, content: str = Form(...)):
     db.close()
 
     return RedirectResponse("/", 303)
-
 # -----------------------
 # Deleting Messages
 # -----------------------
@@ -642,6 +713,11 @@ async def delete_message(request: Request, msg_id: int):
 
     db = get_db()
 
+    db.execute(
+    "DELETE FROM messages_search WHERE message_id = ?",
+    (msg_id,)
+    
+    )
     db.execute(
         "DELETE FROM messages WHERE id = ? AND user_id = ?",
         (msg_id, user_id)
@@ -689,11 +765,24 @@ async def edit_message_page(request: Request, msg_id: int):
         }
     )
 @app.post("/edit_message/{msg_id}")
-async def edit_message(msg_id: int, request: Request, content: str = Form(...)):
+async def edit_message(
+    msg_id: int,
+    request: Request,
+    content: str = Form(...)
+):
 
     user_id = get_current_user_id(request)
+
     if not user_id:
         return RedirectResponse("/login", 303)
+
+    content = content.strip()
+
+    if not content:
+        return HTMLResponse("Message cannot be empty", 400)
+
+    if len(content) > 5000:
+        return HTMLResponse("Message too long", 400)
 
     db = get_db()
 
@@ -701,10 +790,18 @@ async def edit_message(msg_id: int, request: Request, content: str = Form(...)):
         UPDATE messages
         SET content = ?, edited_at = ?
         WHERE id = ? AND user_id = ?
-    """, (content, datetime.now(), msg_id, user_id))
+    """, (
+        content,
+        datetime.now(),
+        msg_id,
+        user_id
+    ))
 
-    # 🔥 keep FTS in sync (delete + reinsert)
-    db.execute("DELETE FROM messages_search WHERE message_id = ?", (msg_id,))
+    db.execute(
+        "DELETE FROM messages_search WHERE message_id = ?",
+        (msg_id,)
+    )
+
     db.execute(
         "INSERT INTO messages_search (content, message_id) VALUES (?, ?)",
         (content, msg_id)
@@ -830,30 +927,61 @@ async def view_message(request: Request, msg_id: int):
         }
     )
 @app.post("/post_reply/{parent_id}")
-async def post_reply(request: Request, parent_id: int, content: str = Form(...)):
+async def post_reply(
+    request: Request,
+    parent_id: int,
+    content: str = Form(...)
+):
     user_id = get_current_user_id(request)
+
     if not user_id:
         return RedirectResponse("/login", status_code=303)
 
+    content = content.strip()
+
+    if not content:
+        return HTMLResponse("Message cannot be empty", 400)
+
+    if len(content) > 5000:
+        return HTMLResponse("Message too long", 400)
+
     db = get_db()
-    # Use 24-hour format for correct chronological sorting
+
+    # Verify parent exists
+    parent_exists = db.execute(
+        "SELECT id FROM messages WHERE id = ?",
+        (parent_id,)
+    ).fetchone()
+
+    if not parent_exists:
+        db.close()
+        return HTMLResponse("Parent message not found", 404)
+
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    
+
     try:
-        # Crucial: We insert the parent_id. If this is a reply to a reply, 
-        # the parent_id will be the ID of that reply.
         db.execute("""
-            INSERT INTO messages (user_id, content, timestamp, parent_id)
+            INSERT INTO messages (
+                user_id,
+                content,
+                timestamp,
+                parent_id
+            )
             VALUES (?, ?, ?, ?)
         """, (user_id, content, now, parent_id))
+
         db.commit()
+
     except Exception as e:
-        print(f"Database Error: {e}")
-    finally:
         db.close()
-    
-    # Redirect back to the thread so they see their reply immediately
-    return RedirectResponse(f"/message/{parent_id}", status_code=303)
+        return HTMLResponse(f"Database error: {e}", 500)
+
+    db.close()
+
+    return RedirectResponse(
+        f"/message/{parent_id}",
+        status_code=303
+    )
 
 # -----------------------
 # Logout

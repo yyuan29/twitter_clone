@@ -1,132 +1,20 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Profile</title>
+{% extends "base.html" %}
 
-    <style>
-        body {
-            font-family: 'Segoe UI', Roboto, Arial, sans-serif;
-            background: #fcfcfc;
-            margin: 0;
-            padding: 0;
-            color: #333;
-        }
+{% block content %}
 
-        .header {
-            background: #fde2e4;
-            padding: 20px;
-            text-align: center;
-            border-bottom: 2px solid #fad2d6;
-        }
+<h2>{{ profile_user.username }}'s Profile</h2>
 
-        .container {
-            max-width: 800px;
-            margin: 30px auto;
-            padding: 20px;
-        }
+<p><b>Bio:</b> {{ profile_user.bio }}</p>
 
-        .profile-card {
-            background: white;
-            border: 1px solid #eee;
-            border-radius: 20px;
-            padding: 20px;
-            margin-bottom: 20px;
-        }
+<hr>
 
-        .username {
-            font-size: 24px;
-            font-weight: bold;
-            color: #ff4d6d;
-        }
+<h3>Posts</h3>
 
-        .bio {
-            margin-top: 10px;
-            color: #666;
-        }
-
-        .edit-bio {
-            margin-top: 15px;
-        }
-
-        textarea {
-            width: 100%;
-            padding: 10px;
-            border-radius: 10px;
-            border: 1px solid #ddd;
-            resize: none;
-        }
-
-        button {
-            margin-top: 10px;
-            padding: 10px 15px;
-            background: #ff4d6d;
-            color: white;
-            border: none;
-            border-radius: 10px;
-            cursor: pointer;
-        }
-
-        button:hover {
-            background: #ff3355;
-        }
-
-        .post {
-            background: white;
-            border: 1px solid #eee;
-            border-radius: 15px;
-            padding: 15px;
-            margin-bottom: 10px;
-        }
-
-        .timestamp {
-            font-size: 0.8em;
-            color: #999;
-        }
-    </style>
-</head>
-
-<body>
-
-<div class="header">
-    <h1>@{{ profile_user.username }}</h1>
-</div>
-
-<div class="container">
-
-    <!-- PROFILE INFO -->
-    <div class="profile-card">
-
-        <div class="username">
-            {{ profile_user.username }}
-        </div>
-
-        <div class="bio">
-            {{ profile_user.bio or "No bio yet." }}
-        </div>
-
-        <!-- EDIT BIO FORM -->
-        {% if user == profile_user.username %}
-        <form class="edit-bio" method="post" action="/update_profile">
-            <textarea name="bio" rows="3" placeholder="Write your bio...">{{ profile_user.bio }}</textarea>
-            <button type="submit">Update Bio</button>
-        </form>
-        {% endif %}
-
+{% for m in messages %}
+    <div class="message">
+        <p>{{ m.content | safe }}</p>
+        <small>{{ m.timestamp }}</small>
     </div>
+{% endfor %}
 
-    <!-- POSTS -->
-    <h3>Posts</h3>
-
-    {% for msg in messages %}
-        <div class="post">
-            <div>{{ msg.content }}</div>
-            <div class="timestamp">{{ msg.timestamp }}</div>
-        </div>
-    {% endfor %}
-
-</div>
-
-</body>
-</html>
+{% endblock %}
