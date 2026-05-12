@@ -13,6 +13,9 @@ import html
 import markdown
 from datetime import datetime
 import bleach
+import random
+DB_PATH = "database.db"
+
 
 
 # -----------------------
@@ -35,22 +38,6 @@ def get_current_user_id(request: Request):
         return int(user_id)
     except:
         return None
-    
-def ensure_bio_column():
-    conn = sqlite3.connect(DB_PATH)
-    cur = conn.cursor()
-
-    cur.execute("PRAGMA table_info(users)")
-    columns = [row[1] for row in cur.fetchall()]
-
-    if "bio" not in columns:
-        cur.execute("ALTER TABLE users ADD COLUMN bio TEXT DEFAULT ''")
-
-    conn.commit()
-    conn.close()
-
-ensure_bio_column()
-
 
 # -----------------------
 # JSON API
@@ -224,6 +211,16 @@ def get_db():
     conn.commit()
     return conn
 
+def db_execute(query, params=()):
+    """
+    Safe wrapper so you NEVER accidentally concat SQL strings.
+    """
+    db = get_db()
+    cur = db.execute(query, params)
+    db.commit()
+    db.close()
+    return cur
+
 def ensure_bio_column():
     conn = sqlite3.connect(DB_PATH)
     cur = conn.cursor()
@@ -238,16 +235,42 @@ def ensure_bio_column():
         conn.commit()
     conn.close()
 
-def db_execute(query, params=()):
-    """
-    Safe wrapper so you NEVER accidentally concat SQL strings.
-    """
+DEFAULT_BIOS = [
+    "Just vibing on BirdieMessages 🐦",
+    "CS student grinding assignments 💻",
+    "Professional procrastinator",
+    "Surviving college one bug at a time",
+    "Debugging my life like my code",
+    "Coffee enthusiast ☕",
+    "Learning and building things",
+    "Here for the memes"
+]
+
+def backfill_bios():
     db = get_db()
-    cur = db.execute(query, params)
+
+    users = db.execute("SELECT id, username, bio FROM users").fetchall()
+    PROTECTED_USERS = ["yuan29", "YumoY"]
+
+    for u in users:
+        # skip your own account
+        if u["username"] in PROTECTED_USERS:
+            continue
+
+       # only fill missing bios
+        if u["bio"] is None or u["bio"].strip() == "":
+            bio = random.choice(DEFAULT_BIOS)
+
+            db.execute(
+                "UPDATE users SET bio = ? WHERE id = ?",
+                (bio, u["id"])
+            )
+
     db.commit()
     db.close()
-    return cur
 
+ensure_bio_column()
+backfill_bios()
 
 # -----------------------
 # SECURITY HELPER
@@ -497,14 +520,8 @@ async def change_password(
 # -----------------------
 @app.get("/profile/{username}", response_class=HTMLResponse)
 async def view_profile(request: Request, username: str):
-    """
-    Displays a user's profile page and their messages.
-    Uses parameterized SQL to prevent injection.
-    """
-
     db = get_db()
 
-    # SAFE query (prevents SQL injection)
     user = db.execute(
         "SELECT * FROM users WHERE username = ?",
         (username,)
@@ -514,7 +531,17 @@ async def view_profile(request: Request, username: str):
         db.close()
         return HTMLResponse("User not found", status_code=404)
 
-    # Get user's messages
+    # 🔥 FIX: ensure bio is never NULL
+    if user["bio"] is None:
+        db.execute(
+            "UPDATE users SET bio = '' WHERE id = ?",
+            (user["id"],)
+        )
+        db.commit()
+
+        user = dict(user)
+        user["bio"] = ""
+
     messages = db.execute(
         """
         SELECT m.*, u.username
@@ -528,36 +555,27 @@ async def view_profile(request: Request, username: str):
 
     db.close()
 
-    # Convert SQLite rows → dicts (IMPORTANT for Jinja)
-    messages_list = [dict(m) for m in messages]
-
-    logged_in_user = request.cookies.get("username")
-    is_own_profile = logged_in_user == username
-
     return templates.TemplateResponse(
         request=request,
         name="profile.html",
         context={
             "request": request,
-            "profile_user": dict(user),
-            "messages": messages_list,
-            "is_own_profile": is_own_profile,
-            "user": logged_in_user,
+            "profile_user": user,
+            "messages": [dict(m) for m in messages],
+            "user": request.cookies.get("username"),
             "t": get_translations(request)
         }
     )
 
 @app.post("/update_profile")
 async def update_profile(request: Request, bio: str = Form(...)):
-
     user_id = get_current_user_id(request)
-    username = request.cookies.get("username")
-
-    if not user_id or not username:
+    if not user_id:
         return RedirectResponse("/login", 303)
 
     db = get_db()
 
+    # update bio safely
     db.execute(
         "UPDATE users SET bio = ? WHERE id = ?",
         (bio, user_id)
@@ -566,7 +584,7 @@ async def update_profile(request: Request, bio: str = Form(...)):
     db.commit()
     db.close()
 
-    return RedirectResponse(f"/profile/{username}", 303)
+    return RedirectResponse(f"/profile/{request.cookies.get('username')}", 303)
 # -----------------------
 # Creating Messages
 # -----------------------
