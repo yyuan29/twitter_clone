@@ -120,16 +120,7 @@
             overflow-wrap: break-word;
         }
 
-        .timestamp {
-            color: #888;
-            font-size: 0.85em;
-        }
-
-        .edit-info {
-            color: #aaa;
-            font-size: 0.75em;
-            font-style: italic;
-        }
+        .timestamp { color: #888; font-size: 0.85em; }
 
         .edited-badge {
             color: var(--birdie-dark-pink);
@@ -140,6 +131,23 @@
             border-radius: 12px;
             border: 1px solid var(--birdie-border);
         }
+
+        .actions-bar {
+            margin-top: 12px;
+            display: flex;
+            gap: 15px;
+        }
+
+        .btn-action {
+            text-decoration: none;
+            font-size: 0.85em;
+            color: #777;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .btn-action:hover { color: var(--birdie-dark-pink); }
 
         .pagination {
             display: flex;
@@ -208,13 +216,28 @@
                     <span class="timestamp">• {{ msg.timestamp }}</span>
 
                     {% if msg.edited_at %}
-                        <span class="edited-badge">{{ t.edit }}</span>
-                        <span class="edit-info">({{ msg.edited_at }})</span>
+                        <span class="edited-badge" title="Edited on {{ msg.edited_at }}">{{ t.edit }}</span>
                     {% endif %}
                 </div>
 
+                {% if msg.parent_id %}
+                    <div style="font-size: 0.8em; color: #888; margin-bottom: 5px; font-style: italic;">
+                        Replying to a thread...
+                    </div>
+                {% endif %}
+
                 <div class="message-content">
                     {{ linkify(msg.content) | safe }}
+                </div>
+
+                <div class="actions-bar">
+                    <a href="/message/{{ msg.id }}" class="btn-action">💬 {{ t.reply or 'Reply' }}</a>
+
+                    {% if user == msg.username %}
+                        <a href="/edit_message/{{ msg.id }}" class="btn-action">✏️ {{ t.edit or 'Edit' }}</a>
+                        <a href="/delete_message/{{ msg.id }}" class="btn-action" 
+                           onclick="return confirm('Are you sure?')">🗑️ {{ t.delete or 'Delete' }}</a>
+                    {% endif %}
                 </div>
             </div>
         </div>

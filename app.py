@@ -3,6 +3,8 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from passlib.hash import pbkdf2_sha256
+from itsdangerous import URLSafeTimedSerializer
+from fastapi import Form
 
 import sqlite3
 import os
@@ -10,6 +12,7 @@ import re
 import html
 import markdown
 from datetime import datetime
+import bleach
 
 # -----------------------
 # APP SETUP
@@ -20,6 +23,19 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 
 DB_PATH = os.path.join(os.path.dirname(__file__), "database.db")
+
+SECRET_KEY = "your-super-secret-key-12345" 
+signer = URLSafeTimedSerializer(SECRET_KEY)
+
+def get_current_user_id(request: Request):
+    signed_uid = request.cookies.get("user_id")
+    if not signed_uid:
+        return None
+    try:
+        # This will fail if the user tampered with the cookie
+        return int(signer.loads(signed_uid, max_age=86400)) # valid for 1 day
+    except:
+        return None
 
 # -----------------------
 # MULTI-LANGUAGE SUPPORT
@@ -181,30 +197,23 @@ def linkify(text):
     if not text:
         return ""
 
-    # 1. ALWAYS escape first (this kills <script>, HTML tags, etc.)
-    text = html.escape(str(text))
+    # 1. Convert Markdown to HTML first
+    # This turns "# Markdown Test" into "<h1>Markdown Test</h1>"
+    html_content = markdown.markdown(text, extensions=["extra", "nl2br"])
 
-    # 2. Convert URLs into safe links
-    text = re.sub(
-        r'(https?://[^\s]+)',
-        r'<a href="\1" target="_blank" rel="noopener noreferrer">\1</a>',
-        text
-    )
+    # 2. Bleach it to remove scripts, but ALLOW h1, p, etc.
+    allowed_tags = ['h1', 'h2', 'h3', 'p', 'br', 'strong', 'em', 'ul', 'ol', 'li', 'a']
+    allowed_attrs = {'a': ['href', 'title', 'target']}
+    
+    # This keeps the <h1> tags but kills any <script> tags
+    clean_html = bleach.clean(html_content, tags=allowed_tags, attributes=allowed_attrs)
 
-    # 3. Convert @mentions safely
-    text = re.sub(
-        r'@(\w+)',
-        r'<a href="/profile/\1">@\1</a>',
-        text
-    )
+    # 3. Add your mentions and link detection
+    clean_html = re.sub(r'(https?://[^\s<]+)', r'<a href="\1" target="_blank">\1</a>', clean_html)
+    clean_html = re.sub(r'@(\w+)', r'<a href="/profile/\1">@\1</a>', clean_html)
 
-    # 4. Preserve line breaks safely
-    text = text.replace("\n", "<br>")
-
-    return text
-
-templates.env.globals["linkify"] = linkify
-
+    return clean_html
+templates.env.globals.update(linkify=linkify)
 
 # -----------------------
 # HOME PAGE (FEED)
@@ -219,16 +228,15 @@ async def home(request: Request, page: int = 1):
     offset = (page - 1) * limit
 
     db = get_db()
-
-    # --- ADD THIS LINE TO FIX THE 'TOTAL' SQUIGGLE ---
-    total_row = db.execute("SELECT COUNT(*) FROM messages WHERE parent_id IS NULL").fetchone()
+    
+    # 1. Count ALL messages (including replies)
+    total_row = db.execute("SELECT COUNT(*) FROM messages").fetchone()
     total = total_row[0] if total_row else 0
 
     rows = db.execute("""
         SELECT m.*, u.username
         FROM messages m
         LEFT JOIN users u ON m.user_id = u.id
-        WHERE m.parent_id IS NULL
         ORDER BY m.timestamp DESC
         LIMIT ? OFFSET ?
     """, (limit, offset)).fetchall()
@@ -238,7 +246,8 @@ async def home(request: Request, page: int = 1):
     return templates.TemplateResponse(
         request=request,
         name="index.html",
-        context={
+        context=
+        {
             "request": request,
             "messages": rows,
             "page": page,
@@ -279,8 +288,7 @@ async def login(username: str = Form(...), password: str = Form(...)):
         return HTMLResponse("Invalid login", status_code=401)
 
     response = RedirectResponse("/", status_code=303)
-    response.set_cookie("user_id", str(user["id"]), httponly=True)
-    response.set_cookie("username", user["username"], httponly=True)
+    response.set_cookie("user_id", signer.dumps(str(user["id"])), httponly=True)
     return response
 
 # -----------------------
@@ -334,9 +342,13 @@ async def register(
 
     response = RedirectResponse("/", status_code=303)
 
-    response.set_cookie("username", username, httponly=True, samesite="lax")
-    response.set_cookie("user_id", str(user_id), httponly=True, samesite="lax")
-
+    response.set_cookie(
+    "user_id", 
+    signer.dumps(str(user_id)), # Sign the ID
+    httponly=True, 
+    samesite="lax", 
+    secure=False # Set to True if using https
+)
     return response
 
 # -----------------------
@@ -598,29 +610,70 @@ async def search(request: Request, q: str = ""):
 # -----------------------
 # REPLY SYSTEM
 # -----------------------
-@app.post("/reply/{parent_id}")
-async def reply(
-    request: Request,
-    parent_id: int,
-    content: str = Form(...)
-):
-
-    user_id = get_current_user_id(request)
-    if not user_id:
-        return RedirectResponse("/login", 303)
-
+@app.get("/message/{msg_id}", response_class=HTMLResponse)
+async def view_message(request: Request, msg_id: int):
     db = get_db()
+    
+    # 1. Get the main message
+    main_msg = db.execute("""
+        SELECT m.*, u.username 
+        FROM messages m 
+        LEFT JOIN users u ON m.user_id = u.id 
+        WHERE m.id = ?
+    """, (msg_id,)).fetchone()
 
-    db.execute(
-        "INSERT INTO messages (user_id, content, parent_id) VALUES (?, ?, ?)",
-        (user_id, content, parent_id)
-    )
+    if not main_msg:
+        db.close()
+        return HTMLResponse(content="Message not found", status_code=404)
 
-    db.commit()
+    # 2. Get the replies (where parent_id matches this msg_id)
+    replies = db.execute("""
+        SELECT m.*, u.username 
+        FROM messages m 
+        LEFT JOIN users u ON m.user_id = u.id 
+        WHERE m.parent_id = ?
+        ORDER BY m.timestamp ASC
+    """, (msg_id,)).fetchall()
+    
     db.close()
 
-    return RedirectResponse("/", 303)
+    return templates.TemplateResponse(
+        request=request,
+        name="reply_message.html", 
+        context=
+        {
+            "request": request, 
+            "message": main_msg, 
+            "replies": replies,
+            "user": request.cookies.get("username"),
+            "t": get_translations(request)
+        }
+    )
+@app.post("/post_reply/{parent_id}")
+async def post_reply(request: Request, parent_id: int, content: str = Form(...)):
+    user_id = get_current_user_id(request)
+    if not user_id:
+        return RedirectResponse("/login", status_code=303)
 
+    db = get_db()
+    # Use 24-hour format for correct chronological sorting
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    
+    try:
+        # Crucial: We insert the parent_id. If this is a reply to a reply, 
+        # the parent_id will be the ID of that reply.
+        db.execute("""
+            INSERT INTO messages (user_id, content, timestamp, parent_id)
+            VALUES (?, ?, ?, ?)
+        """, (user_id, content, now, parent_id))
+        db.commit()
+    except Exception as e:
+        print(f"Database Error: {e}")
+    finally:
+        db.close()
+    
+    # Redirect back to the thread so they see their reply immediately
+    return RedirectResponse(f"/message/{parent_id}", status_code=303)
 
 # -----------------------
 # LOGOUT

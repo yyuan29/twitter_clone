@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Birdie - Thread</title>
+    <style>
+        :root {
+            --birdie-pink: #fde2e4;
+            --birdie-dark-pink: #ff4d6d;
+            --birdie-border: #fad2d6;
+        }
+
+        body {
+            background-color: #fcfcfc;
+            font-family: 'Segoe UI', Roboto, sans-serif;
+            margin: 0; padding: 0; color: #333;
+        }
+
+        .birdie-header {
+            background-color: var(--birdie-pink);
+            padding: 15px 0;
+            border-bottom: 2px solid var(--birdie-border);
+            text-align: center;
+        }
+
+        .container { max-width: 700px; margin: 30px auto; padding: 0 20px; }
+
+        .back-link {
+            text-decoration: none;
+            color: var(--birdie-dark-pink);
+            font-weight: bold;
+            display: inline-block;
+            margin-bottom: 15px;
+        }
+
+        /* MAIN MESSAGE CARD */
+        .main-post {
+            background: white;
+            border: 2px solid var(--birdie-border);
+            border-radius: 25px;
+            padding: 25px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.03);
+        }
+
+        .avatar-main {
+            width: 50px; height: 50px;
+            border-radius: 50%;
+            border: 2px solid var(--birdie-dark-pink);
+        }
+
+        /* REPLIES SECTION */
+        .replies-section {
+            border-left: 3px solid var(--birdie-border);
+            padding-left: 20px;
+            margin-left: 25px;
+            margin-top: 30px;
+        }
+
+        .reply-card {
+            background: white;
+            border: 1px solid #f0f0f0;
+            border-radius: 20px;
+            padding: 15px;
+            margin-bottom: 15px;
+            display: flex;
+            gap: 12px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.02);
+        }
+
+        .avatar-small {
+            width: 40px; height: 40px;
+            border-radius: 50%;
+            border: 1px solid var(--birdie-dark-pink);
+        }
+
+        /* FORM */
+        .reply-form {
+            background: #fff;
+            padding: 20px;
+            border-radius: 20px;
+            border: 1px solid var(--birdie-border);
+            margin: 20px 0;
+        }
+
+        textarea {
+            width: 100%;
+            height: 100px;
+            border-radius: 12px;
+            border: 1px solid #ddd;
+            padding: 12px;
+            box-sizing: border-box;
+            font-family: inherit;
+            font-size: 14px;
+            outline: none;
+        }
+
+        textarea:focus { border-color: var(--birdie-dark-pink); }
+
+        .btn-post {
+            background: var(--birdie-dark-pink);
+            color: white;
+            border: none;
+            padding: 10px 25px;
+            border-radius: 25px;
+            cursor: pointer;
+            margin-top: 10px;
+            font-weight: bold;
+            transition: opacity 0.2s;
+        }
+
+        .btn-post:hover { opacity: 0.9; }
+
+        .reply-to-link {
+            font-size: 0.8em;
+            color: var(--birdie-dark-pink);
+            text-decoration: none;
+            font-weight: bold;
+            margin-top: 8px;
+            display: inline-block;
+        }
+    </style>
+</head>
+<body>
+
+<header class="birdie-header">
+    <h1 style="margin:0; font-size: 24px;">Birdie Thread</h1>
+</header>
+
+<div class="container">
+    <a href="/" class="back-link">← {{ t.home or 'Home' }}</a>
+
+    <div class="main-post">
+        <div style="display: flex; gap: 15px; align-items: center; margin-bottom: 12px;">
+            <img src="https://api.dicebear.com/7.x/fun-emoji/svg?seed={{ message.username }}" class="avatar-main">
+            <div>
+                <strong style="color: var(--birdie-dark-pink);">@{{ message.username }}</strong>
+                <div style="color: #888; font-size: 0.85em;">{{ message.timestamp }}</div>
+            </div>
+        </div>
+        <div style="font-size: 1.15em; line-height: 1.6;">
+            {{ linkify(message.content) | safe }}
+        </div>
+    </div>
+
+    {% if user %}
+    <div class="reply-form">
+        <h3 style="margin-top:0; color: #444;">{{ t.reply or 'Leave a reply' }}</h3>
+        <form action="/post_reply/{{ message.id }}" method="post">
+            <textarea name="content" placeholder="What's your response?" required></textarea>
+            <div style="text-align: right;">
+                <button type="submit" class="btn-post">{{ t.post or 'Reply' }}</button>
+            </div>
+        </form>
+    </div>
+    {% else %}
+    <div style="text-align: center; padding: 20px; color: #666;">
+        Please <a href="/login" style="color: var(--birdie-dark-pink);">Login</a> to join the conversation.
+    </div>
+    {% endif %}
+
+    <div class="replies-section">
+        {% for reply in replies %}
+            <div class="reply-card">
+                <img class="avatar-small" src="https://api.dicebear.com/7.x/fun-emoji/svg?seed={{ reply.username }}">
+                <div style="flex: 1;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <strong style="color: #333;">@{{ reply.username }}</strong>
+                        <span style="color: #aaa; font-size: 0.75em;">{{ reply.timestamp }}</span>
+                    </div>
+                    
+                    <div style="margin-top: 5px; line-height: 1.5;">
+                        {{ linkify(reply.content) | safe }}
+                    </div>
+
+                    <a href="/message/{{ reply.id }}" class="reply-to-link">
+                        💬 Reply to this
+                    </a>
+                </div>
+            </div>
+        {% else %}
+            <div style="text-align: center; color: #bbb; margin-top: 40px;">
+                No replies yet.
+            </div>
+        {% endfor %}
+    </div>
+</div>
+
+</body>
+</html>
