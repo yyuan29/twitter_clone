@@ -161,7 +161,6 @@
         <div class="title-nav">
             <h1>BirdieMessages</h1>
 
-            <!-- LANGUAGES (RESTORED + SMALL UNDER TITLE) -->
             <div class="lang-nav">
                 <a href="/set_lang/en">EN</a> |
                 <a href="/set_lang/fr">FR</a> |
@@ -181,7 +180,6 @@
                 {% endif %}
             </nav>
 
-            <!-- SEARCH BAR (RESTORED) -->
             <div class="search-row">
                 <form action="/search" method="get">
                     <input type="text" name="q" placeholder="{{ t.search_placeholder }}">
@@ -227,6 +225,16 @@
         <span>Page {{ page }}</span>
         {% if has_next %}<a href="/?page={{ page + 1 }}">Next →</a>{% endif %}
     </div>
+
+    <!-- ADDED FOOTER (NO FORMATTING CHANGES ABOVE) -->
+    <div style="text-align:center; margin-top:50px; padding-bottom:30px; color:#888; font-size:0.9em;">
+        <div style="margin-bottom:15px;">
+            <a href="/api/messages" style="color:#ff4d6d; font-weight:bold; margin:0 10px;">JSON API</a>
+            <a href="/reset_password" style="color:#ff4d6d; font-weight:bold; margin:0 10px;">Reset Password</a>
+        </div>
+        <div>Showing 50 messages per page</div>
+    </div>
+
 </div>
 
 </body>

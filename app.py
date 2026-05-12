@@ -4,6 +4,7 @@ from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from passlib.hash import pbkdf2_sha256
 from itsdangerous import URLSafeTimedSerializer
+from fastapi.responses import JSONResponse
 
 import sqlite3
 import os
@@ -12,6 +13,7 @@ import html
 import markdown
 from datetime import datetime
 import bleach
+
 
 # -----------------------
 # APP SETUP
@@ -33,6 +35,46 @@ def get_current_user_id(request: Request):
         return int(user_id)
     except:
         return None
+
+
+# -----------------------
+# JSON API
+# ----------------------- 
+@app.get("/api/messages")
+async def api_messages(page: int = 1):
+    if page < 1:
+        page = 1
+
+    limit = 50
+    offset = (page - 1) * limit
+
+    db = get_db()
+
+    rows = db.execute("""
+        SELECT m.id, m.content, m.timestamp, m.edited_at,
+               u.username
+        FROM messages m
+        LEFT JOIN users u ON m.user_id = u.id
+        ORDER BY m.timestamp DESC
+        LIMIT ? OFFSET ?
+    """, (limit, offset)).fetchall()
+
+    db.close()
+
+    messages = []
+    for r in rows:
+        messages.append({
+            "id": r["id"],
+            "username": r["username"],
+            "content": r["content"],
+            "timestamp": r["timestamp"],
+            "edited_at": r["edited_at"]
+        })
+
+    return JSONResponse(content={
+        "page": page,
+        "messages": messages
+    })
 
 # -----------------------
 # MULTI-LANGUAGE SUPPORT
@@ -375,6 +417,65 @@ async def register(
         samesite="lax"
     )
     return response
+
+# -----------------------
+# Password Reset
+# -----------------------
+@app.get("/reset_password", response_class=HTMLResponse)
+async def reset_password_page(request: Request):
+    if not request.cookies.get("user_id"):
+        return RedirectResponse("/login", 303)
+
+    return templates.TemplateResponse(
+        request=request,
+        name="reset_password.html",
+        context={
+            "request": request,
+            "t": get_translations(request)
+        }
+    )
+@app.post("/reset_password")
+async def reset_password(
+    request: Request,
+    old_password: str = Form(...),
+    new_password: str = Form(...),
+    confirm_password: str = Form(...)
+):
+    user_id = get_current_user_id(request)
+    if not user_id:
+        return RedirectResponse("/login", 303)
+
+    if new_password != confirm_password:
+        return HTMLResponse("New passwords do not match", status_code=400)
+
+    db = get_db()
+
+    user = db.execute(
+        "SELECT * FROM users WHERE id = ?",
+        (user_id,)
+    ).fetchone()
+
+    if not user:
+        db.close()
+        return HTMLResponse("User not found", status_code=404)
+
+    # verify old password
+    if not pbkdf2_sha256.verify(old_password, user["password"]):
+        db.close()
+        return HTMLResponse("Old password incorrect", status_code=403)
+
+    # update password
+    new_hashed = pbkdf2_sha256.hash(new_password)
+
+    db.execute(
+        "UPDATE users SET password = ? WHERE id = ?",
+        (new_hashed, user_id)
+    )
+
+    db.commit()
+    db.close()
+
+    return RedirectResponse("/profile/" + user["username"], 303)
 
 # -----------------------
 # Profiles
