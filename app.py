@@ -167,6 +167,20 @@ def get_db():
     conn.commit()
     return conn
 
+def ensure_bio_column():
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+
+    # check existing columns
+    cur.execute("PRAGMA table_info(users)")
+    columns = [row[1] for row in cur.fetchall()]
+
+    # only add if missing
+    if "bio" not in columns:
+        cur.execute("ALTER TABLE users ADD COLUMN bio TEXT")
+        conn.commit()
+    conn.close()
+
 def db_execute(query, params=()):
     """
     Safe wrapper so you NEVER accidentally concat SQL strings.
@@ -424,13 +438,16 @@ async def update_profile(request: Request, bio: str = Form(...)):
         return RedirectResponse("/login", 303)
 
     db = get_db()
-    username = db.execute(
-        "SELECT username FROM users WHERE id = ?",
-                (user_id,)
-    ).fetchone()["username"]
+
+    db.execute(
+        "UPDATE users SET bio = ? WHERE id = ?",
+        (bio, user_id)
+    )
+
+    db.commit()
     db.close()
 
-    return RedirectResponse(f"/profile/{username}", 303)
+    return RedirectResponse(f"/profile/{request.cookies.get('username')}", 303)
 # -----------------------
 # CREATE MESSAGE
 # -----------------------

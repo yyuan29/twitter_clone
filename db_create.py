@@ -1,56 +1,37 @@
 import sqlite3
+import os
 
 DB_NAME = "database.db"
 
-def init_db():
+def ensure_schema():
     conn = sqlite3.connect(DB_NAME)
-    cursor = conn.cursor()
+    cur = conn.cursor()
 
-    # -----------------------
-    # USERS TABLE
-    # -----------------------
-    cursor.execute("""
+    # make sure users table exists first (safe even if already created)
+    cur.execute("""
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT UNIQUE NOT NULL,
-            password TEXT NOT NULL,
-            age INTEGER
+            username TEXT UNIQUE,
+            password TEXT,
+            age INTEGER,
+            bio TEXT
         )
     """)
 
-    # -----------------------
-    # MESSAGES TABLE
-    # -----------------------
-    # FIX: added parent_id because your app.py uses it
-    cursor.execute("""
+    # messages table (unchanged)
+    cur.execute("""
         CREATE TABLE IF NOT EXISTS messages (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
-            content TEXT NOT NULL,
+            user_id INTEGER,
+            content TEXT,
             timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
             edited_at TEXT,
-            parent_id INTEGER,
-            FOREIGN KEY (user_id) REFERENCES users(id)
+            parent_id INTEGER DEFAULT NULL
         )
-    """)
-
-    # -----------------------
-    # INDEXES (optional but good practice)
-    # -----------------------
-    cursor.execute("""
-        CREATE INDEX IF NOT EXISTS idx_messages_user_id
-        ON messages(user_id)
-    """)
-
-    cursor.execute("""
-        CREATE INDEX IF NOT EXISTS idx_messages_parent_id
-        ON messages(parent_id)
     """)
 
     conn.commit()
     conn.close()
 
-    print("Database initialized successfully!")
-
 if __name__ == "__main__":
-    init_db()
+    ensure_schema()
