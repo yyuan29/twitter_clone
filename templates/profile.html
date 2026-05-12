@@ -33,10 +33,31 @@
             box-shadow: 0 10px 25px rgba(0,0,0,0.05); margin-bottom: 30px; border: 1px solid #eee;
         }
 
+        .main-logo { width: 60px; height: auto; margin-bottom: 5px; }
+
         .avatar-large {
             width: 120px; height: 120px; border-radius: 50%;
             border: 5px solid var(--birdie-dark-pink); background-color: #fff; padding: 5px; margin-bottom: 15px;
         }
+
+        .search-row {
+            margin-top: 12px;
+        }
+
+        .search-row input {
+            padding: 10px 15px;
+            width: 260px;
+            border-radius: 20px;
+            border: 2px solid var(--birdie-dark-pink);
+            outline: none;
+            font-size: 14px;
+            background: white;
+        }
+
+        .search-row input:focus {
+            box-shadow: 0 0 8px rgba(255,77,109,0.3);
+        }
+
 
         .bio-display {
             background: #fff5f6; padding: 20px; border-radius: 20px;
@@ -60,24 +81,61 @@
             color: var(--birdie-dark-pink); background-color: #fff0f3;
             padding: 2px 4px; border-radius: 4px; font-weight: bold; text-decoration: none;
         }
+
+        .bottom-tools {
+            max-width: 800px;
+            margin: 60px auto 40px auto;
+            padding: 0 20px;
+            font-family: inherit;
+            font-size: 0.8em;
+            color: #888;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .bottom-tools a {
+            color: #888;
+            text-decoration: none;
+        }
+
+        .bottom-tools a:hover {
+            color: var(--birdie-dark-pink);
+        }
     </style>
 </head>
-<body>
-    <header class="birdie-header">
-        <div class="header-content">
+    <body>
+        <header class="birdie-header">
+        <div class="logo-container">
+            <img src="/static/logo.png" class="main-logo">
+
             <div class="title-nav">
-                <h1>Birdie Profile</h1>
+                <h1>BirdieMessages</h1>
+
+                <div class="lang-nav">
+                    <a href="/set_lang/en">EN</a> |
+                    <a href="/set_lang/fr">FR</a> |
+                    <a href="/set_lang/zh">中文</a>
+                </div>
+
                 <nav>
-                    <a href="/">Home</a>
-                    {% if user and user != "None" %}
-                        <a href="/profile/{{ user }}">My Profile</a>
-                        <a href="/create_message">New Post</a>
-                        <a href="/logout">Logout</a>
+                    <a href="/">{{ t.home }}</a>
+                    {% if user %}
+                        <a href="/create_message">+ {{ t.post }}</a>
+                        <a href="/profile/{{ user }}">{{ t.profile }}</a>
+                        <a href="/logout">{{ t.logout }}</a>
                     {% else %}
-                        <a href="/login">Login</a>
-                        <a href="/register">Register</a>
+                        <a href="/login">{{ t.login }}</a>
+                        <a href="/register">{{ t.register }}</a>
                     {% endif %}
                 </nav>
+
+                <div class="search-row">
+                    <form action="/search" method="get">
+                        <input type="text" name="q" placeholder="{{ t.search_placeholder }}">
+                    </form>
+                </div>
+
             </div>
         </div>
     </header>
@@ -110,5 +168,10 @@
             </div>
         {% endfor %}
     </div>
+    <div class="bottom-tools">
+    <a href="/api/messages">API: /api/messages</a>
+    <a href="/delete_account">Delete Account</a>
+    <a href="/change_password">Change Password</a>
+</div>
 </body>
 </html>

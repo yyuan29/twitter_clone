@@ -192,6 +192,20 @@ body {
     color: var(--birdie-accent); 
 }
 
+.birdie-footer {
+    text-align: center;
+    margin-top: 40px;
+    padding: 20px;
+    border-top: 1px solid var(--birdie-border);
+    font-size: 12px;
+    color: #777;
+}
+
+.birdie-footer div {
+    margin: 4px 0;
+}
+
+
 /* --- PAGINATION --- */
 .pagination { 
     display: flex; 
