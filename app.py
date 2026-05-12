@@ -287,24 +287,24 @@ async def home(request: Request, page: int = 1):
     db = get_db()
     # The SQL is perfect, but ensure your database has 'username' in the users table
     rows = db.execute("""
-        WITH RECURSIVE message_tree AS (
-            SELECT id, id as root_id, timestamp, 0 as depth
-            FROM messages
-            WHERE parent_id IS NULL
-            
-            UNION ALL
-            
-            SELECT m.id, mt.root_id, m.timestamp, mt.depth + 1
-            FROM messages m
-            JOIN message_tree mt ON m.parent_id = mt.id
-        )
-        SELECT m.*, u.username, mt.depth, mt.root_id
+    WITH RECURSIVE message_tree AS (
+        SELECT id, id as root_id, timestamp, 0 as depth
+        FROM messages
+        WHERE parent_id IS NULL
+
+        UNION ALL
+
+        SELECT m.id, mt.root_id, m.timestamp, mt.depth + 1
         FROM messages m
-        JOIN message_tree mt ON m.id = mt.id
-        LEFT JOIN users u ON m.user_id = u.id
-        ORDER BY mt.root_id DESC, mt.timestamp ASC
-        LIMIT ? OFFSET ?
-    """, (limit, offset)).fetchall()
+        JOIN message_tree mt ON m.parent_id = mt.id
+    )
+    SELECT m.*, u.username, mt.depth, mt.root_id
+    FROM messages m
+    JOIN message_tree mt ON m.id = mt.id
+    LEFT JOIN users u ON m.user_id = u.id
+    ORDER BY mt.root_id DESC, m.id ASC
+    LIMIT ? OFFSET ?
+""", (limit, offset)).fetchall()
 
     total_row = db.execute("SELECT COUNT(*) FROM messages").fetchone()
     total = total_row[0] if total_row else 0
