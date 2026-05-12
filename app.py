@@ -590,18 +590,7 @@ async def view_profile(request: Request, username: str):
 
     if not user:
         db.close()
-        return HTMLResponse("User not found", status_code=404)
-
-    # 🔥 FIX: ensure bio is never NULL
-    if user["bio"] is None:
-        db.execute(
-            "UPDATE users SET bio = '' WHERE id = ?",
-            (user["id"],)
-        )
-        db.commit()
-
-        user = dict(user)
-        user["bio"] = ""
+        return HTMLResponse("User not found", 404)
 
     messages = db.execute(
         """
@@ -616,27 +605,34 @@ async def view_profile(request: Request, username: str):
 
     db.close()
 
+    current_user = request.cookies.get("username")
+
     return templates.TemplateResponse(
-        request=request,
-        name="profile.html",
-        context={
+        request,
+        "profile.html",
+        {
             "request": request,
             "profile_user": user,
-            "messages": [dict(m) for m in messages],
-            "user": request.cookies.get("username"),
+            "messages": messages,
+            "user": current_user,
+            "is_own_profile": current_user == user["username"],
             "t": get_translations(request)
         }
     )
-
 @app.post("/update_profile")
 async def update_profile(request: Request, bio: str = Form(...)):
     user_id = get_current_user_id(request)
+
     if not user_id:
         return RedirectResponse("/login", 303)
 
+    bio = bio.strip()
+
+    if len(bio) > 300:
+        return HTMLResponse("Bio too long", 400)
+
     db = get_db()
 
-    # update bio safely
     db.execute(
         "UPDATE users SET bio = ? WHERE id = ?",
         (bio, user_id)
@@ -645,7 +641,9 @@ async def update_profile(request: Request, bio: str = Form(...)):
     db.commit()
     db.close()
 
-    return RedirectResponse(f"/profile/{request.cookies.get('username')}", 303)
+    username = request.cookies.get("username")
+
+    return RedirectResponse(f"/profile/{username}", 303)
 # -----------------------
 # Creating Messages
 # -----------------------
