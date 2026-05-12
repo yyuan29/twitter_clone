@@ -101,24 +101,22 @@ def get_translations(request: Request):
 
 @app.get("/set_lang/{lang}")
 async def set_language(lang: str):
-    """
-    Switches site language via cookie.
-    """
     response = RedirectResponse(url="/", status_code=303)
-
     if lang in LANGUAGES:
-        response.set_cookie(
-            key="language",
-            value=lang,
-            max_age=60 * 60 * 24 * 30,  # 30 days
-            httponly=True
-        )
-
+        # We use a long max_age so the choice is remembered
+        response.set_cookie(key="language", value=lang, max_age=2592000)
     return response
 
-templates.env.globals["get_t"] = get_translations
-templates.env.globals["t"] = lambda request=None: get_translations(request)
+# This allows you to just type {{ t.home }} in ANY template 
+# as long as you pass the request in the context.
+@app.middleware("http")
+async def add_translations_to_request(request: Request, call_next):
+    request.state.t = get_translations(request)
+    response = await call_next(request)
+    return response
 
+# Update your globals to use the state
+templates.env.globals["get_t"] = get_translations
 # -----------------------
 # DATABASE CONNECTION
 # Creates a safe SQLite connection
