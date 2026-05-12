@@ -124,7 +124,46 @@ templates.env.globals["get_t"] = get_translations
 def get_db():
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
+
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT UNIQUE,
+            password TEXT,
+            age INTEGER,
+            bio TEXT
+        )
+    """)
+
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS messages (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            content TEXT,
+            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+            edited_at TEXT,
+            parent_id INTEGER DEFAULT NULL
+        )
+    """)
+
+    conn.execute("""
+        CREATE VIRTUAL TABLE IF NOT EXISTS messages_search
+        USING fts5(content, message_id UNINDEXED)
+    """)
+
+    conn.commit()
     return conn
+
+
+def db_execute(query, params=()):
+    """
+    Safe wrapper so you NEVER accidentally concat SQL strings.
+    """
+    db = get_db()
+    cur = db.execute(query, params)
+    db.commit()
+    db.close()
+    return cur
 
 
 # -----------------------
@@ -139,33 +178,31 @@ def get_current_user_id(request: Request):
     return int(uid)
 
 
-# Converts text → safe HTML (prevents XSS + supports markdown + links)
 def linkify(text):
     if not text:
         return ""
 
-    # Step 1: escape raw HTML (prevents <script>)
-    safe = html.escape(str(text))
+    # 1. ALWAYS escape first (this kills <script>, HTML tags, etc.)
+    text = html.escape(str(text))
 
-    # Step 2: convert markdown → HTML
-    html_content = markdown.markdown(safe, extensions=["extra", "nl2br"])
-
-    # Step 3: convert URLs → clickable links
-    html_content = re.sub(
-        r'(https?://[^\s<]+)',
-        r'<a href="\1" target="_blank">\1</a>',
-        html_content
+    # 2. Convert URLs into safe links
+    text = re.sub(
+        r'(https?://[^\s]+)',
+        r'<a href="\1" target="_blank" rel="noopener noreferrer">\1</a>',
+        text
     )
 
-    # Step 4: convert @mentions → profile links
-    html_content = re.sub(
+    # 3. Convert @mentions safely
+    text = re.sub(
         r'@(\w+)',
         r'<a href="/profile/\1">@\1</a>',
-        html_content
+        text
     )
 
-    return html_content
+    # 4. Preserve line breaks safely
+    text = text.replace("\n", "<br>")
 
+    return text
 
 templates.env.globals["linkify"] = linkify
 
@@ -386,16 +423,23 @@ async def create_message(request: Request, content: str = Form(...)):
 
     db = get_db()
 
-    db.execute(
+    cursor = db.execute(
         "INSERT INTO messages (user_id, content) VALUES (?, ?)",
         (user_id, content)
+    )
+
+    msg_id = cursor.lastrowid
+
+    # 🔥 THIS IS REQUIRED FOR FTS5
+    db.execute(
+        "INSERT INTO messages_search (content, message_id) VALUES (?, ?)",
+        (content, msg_id)
     )
 
     db.commit()
     db.close()
 
     return RedirectResponse("/", 303)
-
 
 # -----------------------
 # DELETE MESSAGE (OWNERSHIP CHECK)
@@ -456,11 +500,7 @@ async def edit_message_page(request: Request, msg_id: int):
         }
     )
 @app.post("/edit_message/{msg_id}")
-async def edit_message(
-    request: Request,
-    msg_id: int,
-    content: str = Form(...)
-):
+async def edit_message(msg_id: int, request: Request, content: str = Form(...)):
 
     user_id = get_current_user_id(request)
     if not user_id:
@@ -468,13 +508,17 @@ async def edit_message(
 
     db = get_db()
 
-    db.execute(
-        """
+    db.execute("""
         UPDATE messages
         SET content = ?, edited_at = ?
         WHERE id = ? AND user_id = ?
-        """,
-        (content, datetime.now(), msg_id, user_id)
+    """, (content, datetime.now(), msg_id, user_id))
+
+    # 🔥 keep FTS in sync (delete + reinsert)
+    db.execute("DELETE FROM messages_search WHERE message_id = ?", (msg_id,))
+    db.execute(
+        "INSERT INTO messages_search (content, message_id) VALUES (?, ?)",
+        (content, msg_id)
     )
 
     db.commit()
@@ -482,9 +526,80 @@ async def edit_message(
 
     return RedirectResponse("/", 303)
 
-
 # -----------------------
-# REPLY SYSTEM (SAFE INSERT)
+# SEARCH
+# -----------------------
+@app.get("/search", response_class=HTMLResponse)
+async def search(request: Request, q: str = ""):
+    if not q.strip():
+        return RedirectResponse("/", 303)
+
+    db = get_db()
+
+    # Ensure FTS5 table is populated if this is the first time running
+    count = db.execute("SELECT COUNT(*) FROM messages_search").fetchone()[0]
+    if count == 0:
+        db.execute("INSERT INTO messages_search(content, message_id) SELECT content, id FROM messages")
+        db.commit()
+
+    clean_q = re.sub(r'[^a-zA-Z0-9\s]', '', q).strip()
+
+    if not clean_q:
+        db.close()
+        return templates.TemplateResponse(
+            request=request,
+            name="index.html",
+            context={
+                "request": request,
+                "messages": [],
+                "user": request.cookies.get("username"),
+                "page": 1,
+                "has_next": False,
+                "has_prev": False,
+                "t": get_translations(request)
+            }
+        )
+
+    fts_query = f'"{clean_q}"'
+
+    try:
+        rows = db.execute("""
+            SELECT m.*, u.username
+            FROM messages m
+            JOIN users u ON m.user_id = u.id
+            WHERE m.id IN (
+                SELECT message_id
+                FROM messages_search
+                WHERE messages_search MATCH ?
+            )
+            ORDER BY m.timestamp DESC
+        """, (fts_query,)).fetchall()
+    except sqlite3.OperationalError:
+        rows = db.execute("""
+            SELECT m.*, u.username
+            FROM messages m
+            JOIN users u ON m.user_id = u.id
+            WHERE m.content LIKE ?
+            ORDER BY m.timestamp DESC
+        """, (f"%{clean_q}%",)).fetchall()
+    finally:
+        db.close()
+
+    return templates.TemplateResponse(
+        request=request,
+        name="index.html",
+        context={
+            "request": request,
+            "messages": rows,
+            "user": request.cookies.get("username"),
+            "page": 1,
+            "has_next": False,
+            "has_prev": False,
+            "t": get_translations(request)
+        }
+    )
+# -----------------------
+# REPLY SYSTEM
 # -----------------------
 @app.post("/reply/{parent_id}")
 async def reply(
