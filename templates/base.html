@@ -2,59 +2,83 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BirdieMessages</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
     <style>
-        /* General layout styles to match your theme */
-        body { 
-            margin: 0; 
-            padding: 0; 
-            background-color: #fff0f3; 
-            font-family: 'Helvetica Neue', Arial, sans-serif; 
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: #fff0f3;
         }
+
+        header {
+            background: #ffe5ec;
+            padding: 20px;
+            border-bottom: 3px solid #ffc2d1;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
         nav a {
-            color: #000000;
+            margin-right: 10px;
             text-decoration: none;
-            border-bottom: 2px solid #ffc2d1;
-            transition: 0.2s;
+            color: black;
+            font-weight: bold;
         }
+
         nav a:hover {
-            background-color: #ffc2d1;
+            background: #ffc2d1;
+            padding: 2px 5px;
+            border-radius: 5px;
+        }
+
+        .lang a {
+            margin-left: 8px;
+            text-decoration: none;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .container {
+            padding: 20px;
         }
     </style>
 </head>
+
 <body>
 
-    <header style="display: flex; align-items: center; padding: 40px 20px; background-color: #ffe5ec; border-bottom: 4px solid #ffc2d1;">
-        <div class="logo-box">
-            <img src="/static/logo.png" alt="Birdie Logo" style="height: 90px; width: auto; margin-right: 30px;">
-        </div>
+<header>
+    <div>
+        <h2 style="margin:0;">BirdieMessages</h2>
+    </div>
 
-        <div class="header-text">
-            <h1 style="margin: 0; font-size: 3rem; color: #000000; font-family: 'Arial Black', sans-serif; letter-spacing: -1px;">BirdieMessages</h1>
-            
-            <nav style="font-size: 1.1rem; margin-top: 10px; font-weight: bold;">
-                <a href="/">Home</a>
-                <span style="color: #ffc2d1; margin: 0 10px;">|</span>
-                
-                {% if user %}
-                    <a href="/create_message">Post</a>
-                    <span style="color: #ffc2d1; margin: 0 10px;">|</span>
-                    <a href="/logout">Logout</a>
-                {% else %}
-                    <a href="/login">Login</a>
-                    <span style="color: #ffc2d1; margin: 0 10px;">|</span>
-                    <a href="/register">Register</a>
-                {% endif %}
-            </nav>
-        </div>
-    </header>
+    <nav>
+        <!-- SAFE translation usage -->
+        <a href="/">{{ t.get('home', 'Home') }}</a>
 
+        {% if user %}
+            <a href="/create_message">{{ t.get('post', 'Post') }}</a>
+            <a href="/logout">{{ t.get('logout', 'Logout') }}</a>
+        {% else %}
+            <a href="/login">{{ t.get('login', 'Login') }}</a>
+            <a href="/register">{{ t.get('register', 'Register') }}</a>
+        {% endif %}
+    </nav>
+
+    <!-- LANGUAGE SWITCHER -->
+    <div class="lang">
+        <a href="/set_lang/en">EN</a>
+        <a href="/set_lang/fr">FR</a>
+        <a href="/set_lang/zh">中文</a>
+    </div>
+</header>
+
+<!-- PAGE CONTENT -->
+<div class="container">
     {% block content %}{% endblock %}
-
-    <footer style="padding: 40px; text-align: center; color: #ffc2d1; font-size: 0.9rem;">
-        <p>&copy; 2026 BirdieMessages</p>
-    </footer>
+</div>
 
 </body>
 </html>

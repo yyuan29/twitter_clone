@@ -99,8 +99,25 @@ def get_translations(request: Request):
     lang = request.cookies.get("language", "en")
     return LANGUAGES.get(lang, LANGUAGES["en"])
 
-templates.env.globals["get_t"] = get_translations
+@app.get("/set_lang/{lang}")
+async def set_language(lang: str):
+    """
+    Switches site language via cookie.
+    """
+    response = RedirectResponse(url="/", status_code=303)
 
+    if lang in LANGUAGES:
+        response.set_cookie(
+            key="language",
+            value=lang,
+            max_age=60 * 60 * 24 * 30,  # 30 days
+            httponly=True
+        )
+
+    return response
+
+templates.env.globals["get_t"] = get_translations
+templates.env.globals["t"] = lambda request=None: get_translations(request)
 
 # -----------------------
 # DATABASE CONNECTION
@@ -195,7 +212,8 @@ async def home(request: Request, page: int = 1):
             "page": page,
             "has_next": (offset + limit) < total,
             "has_prev": page > 1,
-            "user": request.cookies.get("username")
+            "user": request.cookies.get("username"),
+            "t": get_translations(request)
         }
     )
 
@@ -209,7 +227,9 @@ async def login_page(request: Request):
         request=request,
         name="login.html",
         context=
-        {"request": request}
+        {"request": request,
+          "t": get_translations(request)
+        }
     )
 
 @app.post("/login")
@@ -234,6 +254,21 @@ async def login(username: str = Form(...), password: str = Form(...)):
 # -----------------------
 # REGISTER (HASH PASSWORD)
 # -----------------------
+@app.get("/register", response_class=HTMLResponse)
+async def register_page(request: Request):
+    """
+    Renders the user registration page.
+    Only displays the HTML form.
+    """
+    return templates.TemplateResponse(
+        request=request,
+        name="register.html",
+        context={
+            "request": request,
+            "t": get_translations(request)
+        }
+    )
+
 @app.post("/register")
 async def register(
     request: Request,
@@ -272,7 +307,60 @@ async def register(
 
     return response
 
+# -----------------------
+# Profiles
+# -----------------------
+@app.get("/profile/{username}", response_class=HTMLResponse)
+async def view_profile(request: Request, username: str):
+    """
+    Displays a user's profile page and their messages.
+    Uses parameterized SQL to prevent injection.
+    """
 
+    db = get_db()
+
+    # SAFE query (prevents SQL injection)
+    user = db.execute(
+        "SELECT * FROM users WHERE username = ?",
+        (username,)
+    ).fetchone()
+
+    if not user:
+        db.close()
+        return HTMLResponse("User not found", status_code=404)
+
+    # Get user's messages
+    messages = db.execute(
+        """
+        SELECT m.*, u.username
+        FROM messages m
+        JOIN users u ON m.user_id = u.id
+        WHERE m.user_id = ?
+        ORDER BY m.timestamp DESC
+        """,
+        (user["id"],)
+    ).fetchall()
+
+    db.close()
+
+    # Convert SQLite rows → dicts (IMPORTANT for Jinja)
+    messages_list = [dict(m) for m in messages]
+
+    logged_in_user = request.cookies.get("username")
+    is_own_profile = logged_in_user == username
+
+    return templates.TemplateResponse(
+        request=request,
+        name="profile.html",
+        context={
+            "request": request,
+            "profile_user": dict(user),
+            "messages": messages_list,
+            "is_own_profile": is_own_profile,
+            "user": logged_in_user,
+            "t": get_translations(request)
+        }
+    )
 # -----------------------
 # CREATE MESSAGE
 # -----------------------
@@ -287,7 +375,8 @@ async def create_message_page(request: Request):
         context=
         {
             "request": request,
-            "user": request.cookies.get("username")
+            "user": request.cookies.get("username"),
+            "t": get_translations(request)
         }
     )
 @app.post("/create_message")
@@ -364,7 +453,8 @@ async def edit_message_page(request: Request, msg_id: int):
         {
             "request": request,
             "message": msg,
-            "user": request.cookies.get("username")
+            "user": request.cookies.get("username"),
+            "t": get_translations(request)
         }
     )
 @app.post("/edit_message/{msg_id}")
