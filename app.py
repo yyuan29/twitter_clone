@@ -31,6 +31,7 @@ templates = Jinja2Templates(directory="templates")
 
 DB_PATH = os.path.join(os.path.dirname(__file__), "database.db")
 RATE_LIMIT = defaultdict(list)
+FTS_INITIALIZED = False
 
 SECRET_KEY = os.environ.get(
     "SECRET_KEY",
@@ -41,6 +42,19 @@ serializer = URLSafeTimedSerializer(SECRET_KEY)
 def generate_csrf():
     return secrets.token_urlsafe(32)
 
+@app.middleware("http")
+async def csrf_cookie_middleware(request: Request, call_next):
+    response = await call_next(request)
+
+    if not request.cookies.get("csrf_token"):
+        response.set_cookie(
+            "csrf_token",
+            generate_csrf(),
+            httponly=True,
+            samesite="lax"
+        )
+
+    return response
 
 @app.middleware("http")
 async def security_headers(request: Request, call_next):
@@ -391,27 +405,21 @@ def linkify(text):
     if not text:
         return ""
 
-    # escape raw input FIRST
     text = bleach.clean(text, tags=[], strip=True)
 
-    # convert URLs
     text = re.sub(
         r'(https?://[^\s<]+)',
         r'<a href="\1" target="_blank" rel="noopener noreferrer">\1</a>',
         text
     )
 
-    # convert mentions
     text = re.sub(
         r'@(\w+)',
         r'<a href="/profile/\1">@\1</a>',
         text
     )
 
-    # markdown last
-    html_content = markdown.markdown(text, extensions=["nl2br"])
-
-    return html_content
+    return markdown.markdown(text, extensions=["nl2br"])
 templates.env.globals.update(linkify=linkify)
 
 # -----------------------
@@ -428,26 +436,55 @@ async def home(request: Request, page: int = 1):
     # The SQL is perfect, but ensure your database has 'username' in the users table
     rows = db.execute("""
     WITH RECURSIVE message_tree AS (
-        SELECT id, id as root_id, timestamp, 0 as depth
-        FROM messages
-        WHERE parent_id IS NULL
+    SELECT 
+        id,
+        id AS root_id,
+        parent_id,
+        timestamp,
+        0 AS depth
+    FROM messages
+    WHERE parent_id IS NULL
 
-        UNION ALL
+    UNION ALL
 
-        SELECT m.id, mt.root_id, m.timestamp, mt.depth + 1
-        FROM messages m
-        JOIN message_tree mt ON m.parent_id = mt.id
+    SELECT 
+        m.id,
+        mt.root_id,
+        m.parent_id,
+        m.timestamp,
+        mt.depth + 1
+    FROM messages m
+    JOIN message_tree mt ON m.parent_id = mt.id
     )
-    SELECT m.*, u.username, mt.depth, mt.root_id
+    SELECT 
+        m.id,
+        m.user_id,
+        m.content,
+        m.timestamp,
+        m.edited_at,
+        m.parent_id,
+        u.username,
+        mt.depth,
+        mt.root_id
     FROM messages m
     JOIN message_tree mt ON m.id = mt.id
     LEFT JOIN users u ON m.user_id = u.id
-    ORDER BY mt.root_id DESC, m.id ASC
+    ORDER BY mt.root_id DESC, mt.depth ASC, m.id ASC
     LIMIT ? OFFSET ?
-""", (limit, offset)).fetchall()
+    """, (limit, offset)).fetchall()
 
     total_row = db.execute("SELECT COUNT(*) FROM messages").fetchone()
     total = total_row[0] if total_row else 0
+    new_rows = []
+
+    for r in rows:
+        r = dict(r)
+        if "depth" not in r:
+            r["depth"] = 0
+        new_rows.append(r)
+
+    rows = new_rows
+    
     db.close()
     
     # Get the logged-in user from the cookie
@@ -777,6 +814,37 @@ async def create_message(
     db.close()
 
     return RedirectResponse("/", 303)
+
+@app.post("/api/create_message")
+async def api_create_message(request: Request, content: str = Form(...)):
+    user_id = get_current_user_id(request)
+
+    if not user_id:
+        return JSONResponse({"error": "not logged in"}, status_code=403)
+
+    db = get_db()
+
+    cur = db.execute(
+        "INSERT INTO messages (user_id, content) VALUES (?, ?)",
+        (user_id, content)
+    )
+
+    msg_id = cur.lastrowid
+
+    db.execute(
+        "INSERT INTO messages_search (content, message_id) VALUES (?, ?)",
+        (content, msg_id)
+    )
+
+    db.commit()
+    db.close()
+
+    return JSONResponse({
+        "id": msg_id,
+        "content": content,
+        "username": request.cookies.get("username")
+    })
+
 # -----------------------
 # Deleting Messages
 # -----------------------
@@ -1132,6 +1200,12 @@ async def delete_account(request: Request):
     response.delete_cookie("username")
 
     return response
+
+@app.on_event("startup")
+def startup_event():
+    db = get_db()
+    init_fts(db)
+    db.close()
 
 if __name__ == "__main__":
     import uvicorn
