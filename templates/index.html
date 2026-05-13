@@ -222,7 +222,7 @@
         <div class="chirp-card {% if msg.parent_id %}is-reply{% endif %}">
             
             <img class="avatar-circle {% if msg.parent_id %}avatar-reply{% endif %}"
-                 src="https://api.dicebear.com/7.x/fun-emoji/svg?seed={{ msg.username }}">
+                src="https://robohash.org/{{ msg.username }}?set=set4&size=50x50">
 
             <div style="flex:1;">
                 <div style="display:flex; gap:8px; align-items:center;">
