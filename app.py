@@ -9,7 +9,7 @@ from fastapi.responses import JSONResponse
 import sqlite3
 import os
 import re
-import html
+import secrets
 import markdown
 from datetime import datetime
 import bleach
@@ -31,6 +31,9 @@ DB_PATH = os.path.join(os.path.dirname(__file__), "database.db")
 SECRET_KEY = "your-super-secret-key-12345"
 serializer = URLSafeTimedSerializer(SECRET_KEY)
 
+def generate_csrf():
+    return secrets.token_urlsafe(32)
+
 def get_current_user_id(request: Request):
     signed_user = request.cookies.get("user_id")
 
@@ -44,6 +47,26 @@ def get_current_user_id(request: Request):
     except Exception:
         return None
 
+def set_auth_cookies(response, user_id, username):
+    signed_user_id = serializer.dumps(user_id)
+
+    response.set_cookie(
+        "user_id",
+        signed_user_id,
+        httponly=True,
+        secure=True,
+        samesite="lax",
+        max_age=604800
+    )
+
+    response.set_cookie(
+        "username",
+        username,
+        httponly=True,
+        secure=True,
+        samesite="lax",
+        max_age=604800
+    )
 # -----------------------
 # JSON API
 # ----------------------- 
@@ -172,9 +195,19 @@ async def set_language(lang: str):
 # This allows you to just type {{ t.home }} in ANY template 
 # as long as you pass the request in the context.
 @app.middleware("http")
-async def add_translations_to_request(request: Request, call_next):
-    request.state.t = get_translations(request)
+async def csrf_protect(request: Request, call_next):
     response = await call_next(request)
+
+    # only set token if missing
+    if not request.cookies.get("csrf_token"):
+        response.set_cookie(
+            "csrf_token",
+            generate_csrf(),
+            httponly=False,
+            samesite="lax",
+            secure=True
+        )
+
     return response
 
 # Update your globals to use the state
@@ -278,8 +311,22 @@ ensure_bio_column()
 backfill_bios()
 
 # -----------------------
-# SECURITY HELPER
+# SECURITY HELPERS
 # -----------------------
+def get_current_username(request: Request):
+    user_id = get_current_user_id(request)
+    if not user_id:
+        return None
+
+    db = get_db()
+    user = db.execute(
+        "SELECT username FROM users WHERE id = ?",
+        (user_id,)
+    ).fetchone()
+    db.close()
+
+    return user["username"] if user else None
+
 def linkify(text):
     if not text:
         return ""
@@ -422,23 +469,7 @@ async def login(username: str = Form(...), password: str = Form(...)):
 
     signed_user_id = serializer.dumps(user["id"])
 
-    response.set_cookie(
-    "user_id",
-    signed_user_id,
-    httponly=True,
-    secure=True,
-    samesite="lax",
-    max_age=604800
-    )
-
-    response.set_cookie(
-        "username",
-        user["username"],
-        httponly=True,
-        secure=True,
-        samesite="lax",
-        max_age=604800
-    )
+    set_auth_cookies(response, user["id"], user["username"])
 
     return response
 
@@ -512,23 +543,7 @@ async def register(
 
     response = RedirectResponse("/", status_code=303)
 
-    response.set_cookie(
-    "user_id",
-    signed_user_id,
-    httponly=True,
-    secure=True,
-    samesite="lax",
-    max_age=604800
-    )
-
-    response.set_cookie(
-        "username",
-        username,
-        httponly=True,
-        secure=True,
-        samesite="lax",
-        max_age=604800
-    )
+    set_auth_cookies(response, user_id, username)
 
     return response
 # -----------------------
@@ -738,7 +753,7 @@ async def delete_message(request: Request, msg_id: int):
 # -----------------------
 @app.get("/edit_message/{msg_id}", response_class=HTMLResponse)
 async def edit_message_page(request: Request, msg_id: int):
-    user_id = request.cookies.get("user_id")
+    user_id = get_current_user_id(request)
 
     # must be logged in
     if not user_id:
@@ -833,6 +848,10 @@ async def search(request: Request, q: str = ""):
         db.commit()
 
     clean_q = re.sub(r'[^a-zA-Z0-9\s]', '', q).strip()
+    def sanitize_fts(query):
+        return re.sub(r'["\']', '', query)
+
+    clean_q = sanitize_fts(clean_q)
 
     if not clean_q:
         db.close()
