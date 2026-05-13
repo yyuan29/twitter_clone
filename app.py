@@ -6,6 +6,7 @@ from passlib.hash import pbkdf2_sha256
 from itsdangerous import URLSafeTimedSerializer
 from fastapi.responses import JSONResponse
 from functools import wraps
+from collections import defaultdict
 
 import sqlite3
 import os
@@ -15,6 +16,7 @@ import markdown
 from datetime import datetime
 import bleach
 import random
+import time
 DB_PATH = "database.db"
 
 
@@ -28,8 +30,12 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 
 DB_PATH = os.path.join(os.path.dirname(__file__), "database.db")
+RATE_LIMIT = defaultdict(list)
 
-SECRET_KEY = "your-super-secret-key-12345"
+SECRET_KEY = os.environ.get(
+    "SECRET_KEY",
+    secrets.token_urlsafe(64)
+)
 serializer = URLSafeTimedSerializer(SECRET_KEY)
 
 def generate_csrf():
@@ -37,17 +43,23 @@ def generate_csrf():
 
 
 @app.middleware("http")
-async def csrf_middleware(request: Request, call_next):
+async def security_headers(request: Request, call_next):
     response = await call_next(request)
 
-    if not request.cookies.get("csrf_token"):
-        response.set_cookie(
-            "csrf_token",
-            generate_csrf(),
-            httponly=False,
-            samesite="lax",
-            secure=False  # IMPORTANT for grader + localhost
-        )
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
+
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'self'; "
+        "img-src 'self' https://robohash.org data:; "
+        "style-src 'self' 'unsafe-inline'; "
+        "script-src 'self'; "
+        "object-src 'none'; "
+        "base-uri 'self'; "
+        "frame-ancestors 'none';"
+    )
 
     return response
 
@@ -90,7 +102,7 @@ def set_auth_cookies(response, user_id, username):
         "user_id",
         signed_user_id,
         httponly=True,
-        secure=False,
+        secure=False ,
         samesite="lax",
         max_age=604800
     )
@@ -347,6 +359,22 @@ def get_current_username(request: Request):
 
     return user["username"] if user else None
 
+def is_rate_limited(ip, endpoint, limit=10, seconds=60):
+    now = time.time()
+
+    key = f"{ip}:{endpoint}"
+
+    RATE_LIMIT[key] = [
+        t for t in RATE_LIMIT[key]
+        if now - t < seconds
+    ]
+
+    if len(RATE_LIMIT[key]) >= limit:
+        return True
+
+    RATE_LIMIT[key].append(now)
+    return False
+
 def linkify(text):
     if not text:
         return ""
@@ -475,6 +503,13 @@ async def login_page(request: Request):
 @csrf_required
 async def login(request: Request, username: str = Form(...), password: str = Form(...)):
     db = get_db()
+    client_ip = request.client.host
+
+    if is_rate_limited(client_ip, "login"):
+        return HTMLResponse(
+            "Too many login attempts. Please wait.",
+            status_code=429
+        )
 
     user = db.execute(
         "SELECT * FROM users WHERE username = ?",
@@ -575,7 +610,14 @@ async def register(request: Request, username: str = Form(...), password: str = 
 
     response = RedirectResponse("/", status_code=303)
 
-    set_auth_cookies(response, user_id, username)
+    set_auth_cookies(response.set_cookie(
+    "user_id",
+    signed_user_id,
+    httponly=True,
+    secure=False,
+    samesite="strict",
+    max_age=604800
+    ), user_id, username)
 
     return response
 # -----------------------
