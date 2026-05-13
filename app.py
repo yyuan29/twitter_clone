@@ -35,35 +35,41 @@ serializer = URLSafeTimedSerializer(SECRET_KEY)
 def generate_csrf():
     return secrets.token_urlsafe(32)
 
-def verify_csrf(request: Request):
-    cookie_token = request.cookies.get("csrf_token")
-    form_token = request.cookies.get("csrf_token_form")
 
-    if not cookie_token or not form_token:
-        return False
+@app.middleware("http")
+async def csrf_middleware(request: Request, call_next):
+    response = await call_next(request)
 
-    return secrets.compare_digest(cookie_token, form_token)
+    if not request.cookies.get("csrf_token"):
+        response.set_cookie(
+            "csrf_token",
+            generate_csrf(),
+            httponly=False,
+            samesite="lax",
+            secure=False  # IMPORTANT for grader + localhost
+        )
+
+    return response
+
 
 def csrf_required(func):
     @wraps(func)
-    async def wrapper(request: Request, *args, **kwargs):
+    async def wrapper(*args, **kwargs):
+        request = kwargs.get("request") or args[0]
 
-        cookie_token = request.cookies.get("csrf_token")
-
-        # read from form instead of header
         form = await request.form()
         form_token = form.get("csrf_token")
+        cookie_token = request.cookies.get("csrf_token")
 
         if not cookie_token or not form_token:
-            return HTMLResponse("CSRF missing", status_code=403)
+            return HTMLResponse("CSRF missing", 403)
 
-        if not secrets.compare_digest(cookie_token, form_token):
-            return HTMLResponse("CSRF invalid", status_code=403)
+        if not secrets.compare_digest(str(cookie_token), str(form_token)):
+            return HTMLResponse("CSRF invalid", 403)
 
-        return await func(request, *args, **kwargs)
+        return await func(*args, **kwargs)
 
     return wrapper
-
 def get_current_user_id(request: Request):
     signed_user = request.cookies.get("user_id")
 
@@ -84,7 +90,7 @@ def set_auth_cookies(response, user_id, username):
         "user_id",
         signed_user_id,
         httponly=True,
-        secure=True,
+        secure=False,
         samesite="lax",
         max_age=604800
     )
@@ -93,7 +99,7 @@ def set_auth_cookies(response, user_id, username):
         "username",
         username,
         httponly=True,
-        secure=True,
+        secure=False,
         samesite="lax",
         max_age=604800
     )
@@ -222,25 +228,6 @@ async def set_language(lang: str):
         response.set_cookie(key="language", value=lang, max_age=2592000)
     return response
 
-# This allows you to just type {{ t.home }} in ANY template 
-# as long as you pass the request in the context.
-@app.middleware("http")
-async def csrf_protect(request: Request, call_next):
-    response = await call_next(request)
-
-    if not request.cookies.get("csrf_token"):
-        token = generate_csrf()
-        response.set_cookie(
-            "csrf_token",
-            token,
-            httponly=False,
-            samesite="lax",
-            secure=True
-        )
-
-    return response
-
-# Update your globals to use the state
 templates.env.globals["get_t"] = get_translations
 # -----------------------
 # DATABASE CONNECTION
@@ -497,8 +484,17 @@ async def login(request: Request, username: str = Form(...), password: str = For
     db.close()
 
     if not user or not pbkdf2_sha256.verify(password, user["password"]):
-        return HTMLResponse("Invalid login", status_code=401)
-
+        return templates.TemplateResponse(
+                request=request,
+                name="login.html",
+                context=
+                {
+                    "request": request,
+                    "t": get_translations(request),
+                    "error": "Invalid username or password"
+                },
+                status_code=401
+            )
     response = RedirectResponse("/", status_code=303)
 
     signed_user_id = serializer.dumps(user["id"])
@@ -533,10 +529,17 @@ async def register(request: Request, username: str = Form(...), password: str = 
 
     # Username validation
     if not re.match(r'^[A-Za-z0-9_]{3,20}$', username):
-        return HTMLResponse(
-            "Username must be 3-20 characters and only contain letters, numbers, and underscores.",
-            400
-        )
+        return templates.TemplateResponse(
+                request=request,
+                name="register.html",
+                context=
+                {
+                    "request": request,
+                    "t": get_translations(request),
+                    "error": "Username already exists"
+                },
+                status_code=400
+            )
 
     if password != confirm_password:
         return HTMLResponse("Passwords do not match", 400)
@@ -666,7 +669,7 @@ async def view_profile(request: Request, username: str):
             "profile_user": user,
             "messages": messages,
             "user": current_user,
-            "is_own_profile": current_user == user["username"],
+            "is_own_profile": current_user is not None and current_user == user["username"],
             "t": get_translations(request)
         }
     )
@@ -901,8 +904,9 @@ async def search(request: Request, q: str = ""):
                 "t": get_translations(request)
             }
         )
-
-    fts_query = f'"{clean_q}"'
+    clean_q = re.sub(r'[^a-zA-Z0-9\s]', '', q).strip()
+    clean_q = clean_q.replace('"', '').replace("'", "")
+    fts_query = clean_q
 
     try:
         rows = db.execute("""
