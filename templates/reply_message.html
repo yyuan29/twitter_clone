@@ -133,12 +133,9 @@
 
     <div class="main-post">
         <div style="display: flex; gap: 15px; align-items: center; margin-bottom: 12px;">
-            <img src="https://api.dicebear.com/7.x/fun-emoji/svg?seed={{ message.username }}" class="avatar-main">
-            <div>
                 <strong style="color: var(--birdie-dark-pink);">@{{ message.username }}</strong>
                 <div style="color: #888; font-size: 0.85em;">{{ message.timestamp }}</div>
             </div>
-        </div>
         <div style="font-size: 1.15em; line-height: 1.6;">
             {{ linkify(message.content) | safe }}
         </div>
@@ -164,7 +161,6 @@
     <div class="replies-section">
         {% for reply in replies %}
             <div class="reply-card">
-                <img class="avatar-small" src="https://api.dicebear.com/7.x/fun-emoji/svg?seed={{ reply.username }}">
                 <div style="flex: 1;">
                     <div style="display: flex; justify-content: space-between; align-items: center;">
                         <strong style="color: #333;">@{{ reply.username }}</strong>
