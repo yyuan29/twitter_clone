@@ -250,14 +250,15 @@ def get_db():
     conn.row_factory = sqlite3.Row
 
     conn.execute("""
-        CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT UNIQUE,
-            password TEXT,
-            age INTEGER,
-            bio TEXT
-        )
-    """)
+    CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT UNIQUE,
+        password TEXT,
+        age INTEGER,
+        bio TEXT,
+        avatar TEXT
+    )
+""")
 
     conn.execute("""
         CREATE TABLE IF NOT EXISTS messages (
@@ -342,6 +343,17 @@ backfill_bios()
 # -----------------------
 # SECURITY HELPERS
 # -----------------------
+def init_fts(db):
+    db.execute("""
+        INSERT INTO messages_search(content, message_id)
+        SELECT content, id
+        FROM messages
+        WHERE NOT EXISTS (
+            SELECT 1 FROM messages_search
+        )
+    """)
+    db.commit()
+
 def get_csrf_token(request: Request):
     return request.cookies.get("csrf_token")
 
@@ -379,57 +391,27 @@ def linkify(text):
     if not text:
         return ""
 
-    # Convert markdown safely
-    html_content = markdown.markdown(
-        text,
-        extensions=["extra", "nl2br"]
-    )
+    # escape raw input FIRST
+    text = bleach.clean(text, tags=[], strip=True)
 
-    allowed_tags = [
-        'h1', 'h2', 'h3',
-        'p', 'br',
-        'strong', 'em',
-        'ul', 'ol', 'li',
-        'a', 'code', 'pre'
-    ]
-
-    allowed_attrs = {
-        'a': ['href', 'title', 'target', 'rel']
-    }
-
-    # FIRST SANITIZE
-    clean_html = bleach.clean(
-        html_content,
-        tags=allowed_tags,
-        attributes=allowed_attrs,
-        protocols=['http', 'https'],
-        strip=True
-    )
-
-    # Convert URLs into links
-    clean_html = re.sub(
+    # convert URLs
+    text = re.sub(
         r'(https?://[^\s<]+)',
         r'<a href="\1" target="_blank" rel="noopener noreferrer">\1</a>',
-        clean_html
+        text
     )
 
-    # Convert mentions safely
-    clean_html = re.sub(
+    # convert mentions
+    text = re.sub(
         r'@(\w+)',
         r'<a href="/profile/\1">@\1</a>',
-        clean_html
+        text
     )
 
-    # SANITIZE AGAIN AFTER REGEX
-    clean_html = bleach.clean(
-        clean_html,
-        tags=allowed_tags,
-        attributes=allowed_attrs,
-        protocols=['http', 'https'],
-        strip=True
-    )
+    # markdown last
+    html_content = markdown.markdown(text, extensions=["nl2br"])
 
-    return clean_html
+    return html_content
 templates.env.globals.update(linkify=linkify)
 
 # -----------------------
@@ -565,16 +547,13 @@ async def register(request: Request, username: str = Form(...), password: str = 
     # Username validation
     if not re.match(r'^[A-Za-z0-9_]{3,20}$', username):
         return templates.TemplateResponse(
-                request=request,
-                name="register.html",
-                context=
-                {
-                    "request": request,
-                    "t": get_translations(request),
-                    "error": "Username already exists"
-                },
-                status_code=400
-            )
+            "register.html",
+            {
+                "request": request,
+                "error": "Invalid username format"
+            },
+            status_code=400
+        )
 
     if password != confirm_password:
         return HTMLResponse("Passwords do not match", 400)
@@ -586,15 +565,13 @@ async def register(request: Request, username: str = Form(...), password: str = 
     try:
         cur = db.execute(
             """
-            INSERT INTO users (
-                username,
-                password,
-                age
-            )
+            INSERT INTO users (username, password, age)
             VALUES (?, ?, ?)
             """,
             (username, hashed, age)
         )
+
+        user_id = cur.lastrowid
 
         avatar_url = f"https://robohash.org/{username}.png?size=200x200"
 
@@ -604,7 +581,6 @@ async def register(request: Request, username: str = Form(...), password: str = 
         )
 
         db.commit()
-
         user_id = cur.lastrowid
 
     except sqlite3.IntegrityError:
@@ -625,8 +601,10 @@ async def register(request: Request, username: str = Form(...), password: str = 
 # -----------------------
 @app.get("/change_password", response_class=HTMLResponse)
 async def change_password_page(request: Request):
-    return HTMLResponse("""
+    csrf_token = generate_csrf()
+    response = HTMLResponse(f"""
     <form method="post">
+        <input type="hidden" name="csrf_token" value="{csrf_token}">
         <input type="password" name="old_password" placeholder="Old password" required><br>
         <input type="password" name="new_password" placeholder="New password" required><br>
         <input type="password" name="confirm_password" placeholder="Confirm password" required><br>
@@ -634,6 +612,8 @@ async def change_password_page(request: Request):
     </form>
     """)
 
+    response.set_cookie("csrf_token", csrf_token)
+    return response
 @app.post("/change_password")
 @csrf_required
 async def change_password(
@@ -919,6 +899,7 @@ async def search(request: Request, q: str = ""):
         return RedirectResponse("/", 303)
 
     db = get_db()
+    init_fts(db)
 
     # Ensure FTS5 table is populated if this is the first time running
     count = db.execute("SELECT COUNT(*) FROM messages_search").fetchone()[0]
