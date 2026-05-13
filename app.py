@@ -423,18 +423,21 @@ async def login(username: str = Form(...), password: str = Form(...)):
     signed_user_id = serializer.dumps(user["id"])
 
     response.set_cookie(
-        "user_id",
-        signed_user_id,
-        httponly=True,
-        samesite="lax",
-        secure=False
+    "user_id",
+    signed_user_id,
+    httponly=True,
+    secure=True,
+    samesite="lax",
+    max_age=604800
     )
 
     response.set_cookie(
         "username",
         user["username"],
-        httponly=False,
-        samesite="lax"
+        httponly=True,
+        secure=True,
+        samesite="lax",
+        max_age=604800
     )
 
     return response
@@ -510,18 +513,21 @@ async def register(
     response = RedirectResponse("/", status_code=303)
 
     response.set_cookie(
-        "user_id",
-        signed_user_id,
-        httponly=True,
-        samesite="lax",
-        secure=False
+    "user_id",
+    signed_user_id,
+    httponly=True,
+    secure=True,
+    samesite="lax",
+    max_age=604800
     )
 
     response.set_cookie(
         "username",
         username,
-        httponly=False,
-        samesite="lax"
+        httponly=True,
+        secure=True,
+        samesite="lax",
+        max_age=604800
     )
 
     return response
