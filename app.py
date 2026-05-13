@@ -5,6 +5,7 @@ from fastapi.staticfiles import StaticFiles
 from passlib.hash import pbkdf2_sha256
 from itsdangerous import URLSafeTimedSerializer
 from fastapi.responses import JSONResponse
+from functools import wraps
 
 import sqlite3
 import os
@@ -33,6 +34,27 @@ serializer = URLSafeTimedSerializer(SECRET_KEY)
 
 def generate_csrf():
     return secrets.token_urlsafe(32)
+
+def verify_csrf(request: Request):
+    cookie_token = request.cookies.get("csrf_token")
+    form_token = request.headers.get("X-CSRF-Token")
+
+    if not cookie_token or not form_token:
+        return False
+
+    return secrets.compare_digest(cookie_token, form_token)
+
+def csrf_required(func):
+    @wraps(func)
+    async def wrapper(*args, **kwargs):
+        request = kwargs.get("request")
+
+        if request and not verify_csrf(request):
+            return HTMLResponse("CSRF validation failed", status_code=403)
+
+        return await func(*args, **kwargs)
+
+    return wrapper
 
 def get_current_user_id(request: Request):
     signed_user = request.cookies.get("user_id")
@@ -185,6 +207,7 @@ def get_translations(request: Request):
     return LANGUAGES.get(lang, LANGUAGES["en"])
 
 @app.get("/set_lang/{lang}")
+@csrf_required
 async def set_language(lang: str):
     response = RedirectResponse(url="/", status_code=303)
     if lang in LANGUAGES:
@@ -452,6 +475,7 @@ async def login_page(request: Request):
     )
 
 @app.post("/login")
+@csrf_required
 async def login(username: str = Form(...), password: str = Form(...)):
     db = get_db()
 
@@ -492,6 +516,7 @@ async def register_page(request: Request):
     )
 
 @app.post("/register")
+@csrf_required
 async def register(
     request: Request,
     username: str = Form(...),
@@ -561,6 +586,7 @@ async def change_password_page(request: Request):
     """)
 
 @app.post("/change_password")
+@csrf_required
 async def change_password(
     request: Request,
     old_password: str = Form(...),
@@ -641,6 +667,7 @@ async def view_profile(request: Request, username: str):
         }
     )
 @app.post("/update_profile")
+@csrf_required
 async def update_profile(request: Request, bio: str = Form(...)):
     user_id = get_current_user_id(request)
 
@@ -684,6 +711,7 @@ async def create_message_page(request: Request):
         }
     )
 @app.post("/create_message")
+@csrf_required
 async def create_message(
     request: Request,
     content: str = Form(...)
@@ -784,6 +812,7 @@ async def edit_message_page(request: Request, msg_id: int):
         }
     )
 @app.post("/edit_message/{msg_id}")
+@csrf_required
 async def edit_message(
     msg_id: int,
     request: Request,
@@ -950,6 +979,7 @@ async def view_message(request: Request, msg_id: int):
         }
     )
 @app.post("/post_reply/{parent_id}")
+@csrf_required
 async def post_reply(
     request: Request,
     parent_id: int,
@@ -1047,6 +1077,7 @@ async def delete_account_confirm(request: Request):
     """)
 
 @app.post("/delete_account")
+@csrf_required
 async def delete_account(request: Request):
     user_id = get_current_user_id(request)
     if not user_id:
