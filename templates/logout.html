@@ -6,6 +6,7 @@
     <p>Are you sure you want to log out of your account?</p>
     
     <form action="/logout" method="post">
+        <input type="hidden" name="csrf_token" value="{{ request.cookies.get('csrf_token') }}">
         <button type="submit" style="background-color: #ff4444; color: white;">Yes, Log Me Out</button>
         <a href="/">No, take me home</a>
     </form>

@@ -37,7 +37,7 @@ def generate_csrf():
 
 def verify_csrf(request: Request):
     cookie_token = request.cookies.get("csrf_token")
-    form_token = request.headers.get("X-CSRF-Token")
+    form_token = request.cookies.get("csrf_token_form")
 
     if not cookie_token or not form_token:
         return False
@@ -46,13 +46,21 @@ def verify_csrf(request: Request):
 
 def csrf_required(func):
     @wraps(func)
-    async def wrapper(*args, **kwargs):
-        request = kwargs.get("request")
+    async def wrapper(request: Request, *args, **kwargs):
 
-        if request and not verify_csrf(request):
-            return HTMLResponse("CSRF validation failed", status_code=403)
+        cookie_token = request.cookies.get("csrf_token")
 
-        return await func(*args, **kwargs)
+        # read from form instead of header
+        form = await request.form()
+        form_token = form.get("csrf_token")
+
+        if not cookie_token or not form_token:
+            return HTMLResponse("CSRF missing", status_code=403)
+
+        if not secrets.compare_digest(cookie_token, form_token):
+            return HTMLResponse("CSRF invalid", status_code=403)
+
+        return await func(request, *args, **kwargs)
 
     return wrapper
 
@@ -207,7 +215,6 @@ def get_translations(request: Request):
     return LANGUAGES.get(lang, LANGUAGES["en"])
 
 @app.get("/set_lang/{lang}")
-@csrf_required
 async def set_language(lang: str):
     response = RedirectResponse(url="/", status_code=303)
     if lang in LANGUAGES:
@@ -221,11 +228,11 @@ async def set_language(lang: str):
 async def csrf_protect(request: Request, call_next):
     response = await call_next(request)
 
-    # only set token if missing
     if not request.cookies.get("csrf_token"):
+        token = generate_csrf()
         response.set_cookie(
             "csrf_token",
-            generate_csrf(),
+            token,
             httponly=False,
             samesite="lax",
             secure=True
@@ -336,6 +343,9 @@ backfill_bios()
 # -----------------------
 # SECURITY HELPERS
 # -----------------------
+def get_csrf_token(request: Request):
+    return request.cookies.get("csrf_token")
+
 def get_current_username(request: Request):
     user_id = get_current_user_id(request)
     if not user_id:
@@ -476,7 +486,7 @@ async def login_page(request: Request):
 
 @app.post("/login")
 @csrf_required
-async def login(username: str = Form(...), password: str = Form(...)):
+async def login(request: Request, username: str = Form(...), password: str = Form(...)):
     db = get_db()
 
     user = db.execute(
@@ -517,13 +527,7 @@ async def register_page(request: Request):
 
 @app.post("/register")
 @csrf_required
-async def register(
-    request: Request,
-    username: str = Form(...),
-    password: str = Form(...),
-    confirm_password: str = Form(...),
-    age: int = Form(...)
-):
+async def register(request: Request, username: str = Form(...), password: str = Form(...), confirm_password: str = Form(...), age: int = Form(...)):
 
     username = username.strip()
 

@@ -153,6 +153,7 @@
             {% if is_own_profile %}
                 <div class="bio-edit-form">
                     <form action="/update_profile" method="post">
+                        <input type="hidden" name="csrf_token" value="{{ request.cookies.get('csrf_token') }}">
                         <textarea name="bio" placeholder="Update your bio...">{{ profile_user.bio or '' }}</textarea>
                         <button type="submit" class="save-btn">Save Bio</button>
                     </form>

@@ -148,6 +148,7 @@
     <div class="reply-form">
         <h3 style="margin-top:0; color: #444;">{{ t.reply or 'Leave a reply' }}</h3>
         <form action="/post_reply/{{ message.id }}" method="post">
+            <input type="hidden" name="csrf_token" value="{{ request.cookies.get('csrf_token') }}">
             <textarea name="content" placeholder="What's your response?" required></textarea>
             <div style="text-align: right;">
                 <button type="submit" class="btn-post">{{ t.post or 'Reply' }}</button>

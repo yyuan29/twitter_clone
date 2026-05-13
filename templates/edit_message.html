@@ -13,6 +13,7 @@
     <div class="edit-box">
         <h2 style="color: #ff4d6d; margin-top: 0;">Edit Your Chirp</h2>
         <form action="/edit_message/{{ message.id }}" method="post">
+            <input type="hidden" name="csrf_token" value="{{ request.cookies.get('csrf_token') }}">
             <textarea name="content">{{ message.content }}</textarea>
             <button type="submit" class="btn-pink">Save Changes</button>
             <a href="/" style="color: #888; text-decoration: none; margin-left: 10px;">Cancel</a>

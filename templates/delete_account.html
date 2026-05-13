@@ -10,6 +10,7 @@
 <p>This action is permanent.</p>
 
 <form method="post">
+    <input type="hidden" name="csrf_token" value="{{ request.cookies.get('csrf_token') }}">
     <input type="password" name="password" placeholder="Confirm password" required>
     <button type="submit" style="background:red;color:white;">
         Delete My Account
