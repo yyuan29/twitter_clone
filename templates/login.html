@@ -1,25 +1,180 @@
-{% extends "base.html" %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Birdie - Login</title>
 
-{% block title %}
-Login
-{% endblock %}
+    <style>
+        :root {
+            --birdie-pink: #fde2e4;
+            --birdie-dark-pink: #ff4d6d;
+            --birdie-border: #fad2d6;
+        }
 
-{% block content %}
+        body {
+            background-color: #fcfcfc;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0; padding: 0; color: #333;
+        }
 
-<h2>Login</h2>
+        .birdie-header {
+            background-color: var(--birdie-pink);
+            padding: 20px 0;
+            border-bottom: 2px solid var(--birdie-border);
+            text-align: center;
+        }
 
-<form action="/login" method="post">
+        .title-nav h1 {
+            font-size: 32px;
+            margin: 0;
+            font-weight: 800;
+        }
 
-    <label>Username</label>
-    <input type="text" name="username" required>
+        .title-nav nav {
+            margin-top: 10px;
+            font-weight: 600;
+        }
 
-    <label>Password</label>
-    <input type="password" name="password" required>
+        .title-nav nav a {
+            text-decoration: none;
+            color: #444;
+            margin: 0 12px;
+        }
 
-    <button type="submit">
-        Login
-    </button>
+        .container {
+            max-width: 700px;
+            margin: 40px auto;
+            padding: 0 20px;
+        }
 
-</form>
+        .login-card {
+            background: white;
+            border-radius: 30px;
+            padding: 40px;
+            text-align: center;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.05);
+            border: 1px solid #eee;
+        }
 
-{% endblock %}
+        .login-card h2 {
+            color: var(--birdie-dark-pink);
+            margin-bottom: 20px;
+        }
+
+        .login-card input {
+            width: 80%;
+            padding: 12px 15px;
+            margin: 10px 0;
+            border-radius: 15px;
+            border: 2px solid var(--birdie-border);
+            outline: none;
+            font-size: 14px;
+        }
+
+        .login-card input:focus {
+            box-shadow: 0 0 8px rgba(255,77,109,0.3);
+        }
+
+        .login-btn {
+            background-color: var(--birdie-dark-pink);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 12px;
+            font-weight: bold;
+            cursor: pointer;
+            margin-top: 15px;
+        }
+
+        .search-row {
+            margin-top: 12px;
+        }
+
+        .search-row input {
+            padding: 10px 15px;
+            width: 260px;
+            border-radius: 20px;
+            border: 2px solid var(--birdie-dark-pink);
+            outline: none;
+            font-size: 14px;
+            background: white;
+        }
+
+        .search-row input:focus {
+            box-shadow: 0 0 8px rgba(255,77,109,0.3);
+        }
+
+        .bottom-tools {
+            max-width: 800px;
+            margin: 60px auto 40px auto;
+            padding: 0 20px;
+            font-size: 0.8em;
+            color: #888;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .bottom-tools a {
+            color: #888;
+            text-decoration: none;
+        }
+
+        .bottom-tools a:hover {
+            color: var(--birdie-dark-pink);
+        }
+    </style>
+</head>
+
+<body>
+
+<header class="birdie-header">
+    <div class="logo-container">
+        <div class="title-nav">
+            <h1>BirdieMessages</h1>
+
+            <div class="lang-nav">
+                <a href="/set_lang/en">EN</a> |
+                <a href="/set_lang/fr">FR</a> |
+                <a href="/set_lang/zh">中文</a>
+            </div>
+
+            <nav>
+                <a href="/">{{ t.home }}</a>
+                <a href="/login">{{ t.login }}</a>
+                <a href="/register">{{ t.register }}</a>
+            </nav>
+
+            <div class="search-row">
+                <form action="/search" method="get">
+                    <input type="text" name="q" placeholder="{{ t.search_placeholder }}">
+                </form>
+            </div>
+
+        </div>
+    </div>
+</header>
+
+<div class="container">
+    <div class="login-card">
+        <h2>Login</h2>
+
+        <form action="/login" method="post">
+            <input type="text" name="username" placeholder="Username" required>
+            <br>
+            <input type="password" name="password" placeholder="Password" required>
+            <br>
+            <button type="submit" class="login-btn">Login</button>
+        </form>
+    </div>
+</div>
+
+<div class="bottom-tools">
+    <a href="/api/messages">API: /api/messages</a>
+    <a href="/delete_account">Delete Account</a>
+    <a href="/change_password">Change Password</a>
+</div>
+
+</body>
+</html>
