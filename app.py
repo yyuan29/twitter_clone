@@ -596,6 +596,13 @@ async def register(request: Request, username: str = Form(...), password: str = 
             (username, hashed, age)
         )
 
+        avatar_url = f"https://robohash.org/{username}.png?size=200x200"
+
+        db.execute(
+            "UPDATE users SET avatar = ? WHERE id = ?",
+            (avatar_url, user_id)
+        )
+
         db.commit()
 
         user_id = cur.lastrowid
@@ -610,14 +617,7 @@ async def register(request: Request, username: str = Form(...), password: str = 
 
     response = RedirectResponse("/", status_code=303)
 
-    set_auth_cookies(response.set_cookie(
-    "user_id",
-    signed_user_id,
-    httponly=True,
-    secure=False,
-    samesite="strict",
-    max_age=604800
-    ), user_id, username)
+    set_auth_cookies(response, user_id, username)
 
     return response
 # -----------------------
@@ -800,7 +800,8 @@ async def create_message(
 # -----------------------
 # Deleting Messages
 # -----------------------
-@app.get("/delete_message/{msg_id}")
+@app.post("/delete_message/{msg_id}")
+@csrf_required
 async def delete_message(request: Request, msg_id: int):
 
     user_id = get_current_user_id(request)
@@ -1077,8 +1078,12 @@ async def post_reply(
 
     except Exception as e:
         db.close()
-        return HTMLResponse(f"Database error: {e}", 500)
+        print("Database error:", e)
 
+        return HTMLResponse(
+            "Internal server error",
+            500
+        )
     db.close()
 
     return RedirectResponse(

@@ -66,10 +66,10 @@
             <a href="/register">Register</a>
         {% endif %}
         <div class="search-row">
-            <form action="/search" method="get">
-                <input type="text" name="q" class="pretty-search" placeholder="Search messages...">
-            </form>
-        </div>
+                    <form action="/search" method="get">
+                        <input type="text" name="q" placeholder="{{ t.search_placeholder }}">
+                    </form>
+                </div>
     </nav>
 </header>
 

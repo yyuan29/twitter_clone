@@ -6,6 +6,9 @@
     <h1 style="color: #000000; font-family: 'Arial Black', sans-serif; text-align: center; margin-bottom: 30px;">Join Birdie</h1>
 
     <form action="/register" method="post" style="display: flex; flex-direction: column; gap: 15px;">
+        <input type="hidden"
+                name="csrf_token"
+                value="{{ request.cookies.get('csrf_token') }}">
         <div>
             <label style="display: block; font-weight: bold; margin-bottom: 5px;">Username</label>
             <input type="text" name="username" required style="width: 100%; padding: 12px; border: 2px solid #ffc2d1; border-radius: 10px; box-sizing: border-box;">
