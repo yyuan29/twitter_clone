@@ -161,7 +161,7 @@
             {% endif %}
         </div>
 
-        <h3 style="border-left: 5px solid var(--birdie-dark-pink); padding-left: 10px;">Chirps</h3>
+        <h3 style="border-left: 5px solid var(--birdie-dark-pink); padding-left: 10px; padding-right: 10px">Chirps</h3>
         {% for msg in messages %}
             <div class="msg-card">
                 <div>{{ linkify(msg.content) | safe }}</div>
