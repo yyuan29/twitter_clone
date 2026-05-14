@@ -157,7 +157,7 @@ async def api_messages(page: int = 1):
     for r in rows:
         messages.append({
             "id": r["id"],
-            "username": r["username"],
+            "username": r["username"] or "Deleted User",
             "content": r["content"],
             "timestamp": r["timestamp"],
             "edited_at": r["edited_at"]
@@ -481,6 +481,7 @@ async def home(request: Request, page: int = 1):
         r = dict(r)
         if "depth" not in r:
             r["depth"] = 0
+        r["username"] = r["username"] or "Deleted User"
         new_rows.append(r)
 
     rows = new_rows
@@ -963,26 +964,33 @@ async def edit_message(
 # -----------------------
 @app.get("/search", response_class=HTMLResponse)
 async def search(request: Request, q: str = ""):
+
     if not q.strip():
         return RedirectResponse("/", 303)
 
     db = get_db()
     init_fts(db)
 
-    # Ensure FTS5 table is populated if this is the first time running
-    count = db.execute("SELECT COUNT(*) FROM messages_search").fetchone()[0]
+    # populate FTS if empty
+    count = db.execute(
+        "SELECT COUNT(*) FROM messages_search"
+    ).fetchone()[0]
+
     if count == 0:
-        db.execute("INSERT INTO messages_search(content, message_id) SELECT content, id FROM messages")
+        db.execute("""
+            INSERT INTO messages_search(content, message_id)
+            SELECT content, id
+            FROM messages
+        """)
         db.commit()
 
+    # sanitize search
     clean_q = re.sub(r'[^a-zA-Z0-9\s]', '', q).strip()
-    def sanitize_fts(query):
-        return re.sub(r'["\']', '', query)
-
-    clean_q = sanitize_fts(clean_q)
+    clean_q = clean_q.replace('"', '').replace("'", "")
 
     if not clean_q:
         db.close()
+
         return templates.TemplateResponse(
             request=request,
             name="index.html",
@@ -996,32 +1004,138 @@ async def search(request: Request, q: str = ""):
                 "t": get_translations(request)
             }
         )
-    clean_q = re.sub(r'[^a-zA-Z0-9\s]', '', q).strip()
-    clean_q = clean_q.replace('"', '').replace("'", "")
+
     fts_query = clean_q
 
     try:
         rows = db.execute("""
-            SELECT m.*, u.username
+
+        WITH RECURSIVE message_tree AS (
+
+            SELECT
+                id,
+                id AS root_id,
+                parent_id,
+                timestamp,
+                0 AS depth
+            FROM messages
+            WHERE parent_id IS NULL
+
+            UNION ALL
+
+            SELECT
+                m.id,
+                mt.root_id,
+                m.parent_id,
+                m.timestamp,
+                mt.depth + 1
             FROM messages m
-            JOIN users u ON m.user_id = u.id
-            WHERE m.id IN (
-                SELECT message_id
-                FROM messages_search
-                WHERE messages_search MATCH ?
-            )
-            ORDER BY m.timestamp DESC
+            JOIN message_tree mt
+                ON m.parent_id = mt.id
+        )
+
+        SELECT
+            m.id,
+            m.user_id,
+            m.content,
+            m.timestamp,
+            m.edited_at,
+            m.parent_id,
+            u.username,
+            mt.depth,
+            mt.root_id
+
+        FROM messages m
+
+        JOIN message_tree mt
+            ON m.id = mt.id
+
+        LEFT JOIN users u
+            ON m.user_id = u.id
+
+        WHERE m.id IN (
+            SELECT message_id
+            FROM messages_search
+            WHERE messages_search MATCH ?
+        )
+
+        ORDER BY
+            mt.root_id DESC,
+            mt.depth ASC,
+            m.id ASC
+
         """, (fts_query,)).fetchall()
+
     except sqlite3.OperationalError:
+
         rows = db.execute("""
-            SELECT m.*, u.username
+
+        WITH RECURSIVE message_tree AS (
+
+            SELECT
+                id,
+                id AS root_id,
+                parent_id,
+                timestamp,
+                0 AS depth
+            FROM messages
+            WHERE parent_id IS NULL
+
+            UNION ALL
+
+            SELECT
+                m.id,
+                mt.root_id,
+                m.parent_id,
+                m.timestamp,
+                mt.depth + 1
             FROM messages m
-            JOIN users u ON m.user_id = u.id
-            WHERE m.content LIKE ?
-            ORDER BY m.timestamp DESC
+            JOIN message_tree mt
+                ON m.parent_id = mt.id
+        )
+
+        SELECT
+            m.id,
+            m.user_id,
+            m.content,
+            m.timestamp,
+            m.edited_at,
+            m.parent_id,
+            u.username,
+            mt.depth,
+            mt.root_id
+
+        FROM messages m
+
+        JOIN message_tree mt
+            ON m.id = mt.id
+
+        LEFT JOIN users u
+            ON m.user_id = u.id
+
+        WHERE m.content LIKE ?
+
+        ORDER BY
+            mt.root_id DESC,
+            mt.depth ASC,
+            m.id ASC
+
         """, (f"%{clean_q}%",)).fetchall()
-    finally:
-        db.close()
+
+    # FIX missing depth crashes
+    new_rows = []
+
+    for r in rows:
+        r = dict(r)
+
+        if "depth" not in r:
+            r["depth"] = 0
+
+        new_rows.append(r)
+
+    rows = new_rows
+
+    db.close()
 
     return templates.TemplateResponse(
         request=request,
@@ -1036,6 +1150,7 @@ async def search(request: Request, q: str = ""):
             "t": get_translations(request)
         }
     )
+
 # -----------------------
 # Reply
 # -----------------------
